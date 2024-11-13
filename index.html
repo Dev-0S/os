@@ -4,122 +4,52 @@
     <meta charset="UTF-8">
     <title>Welcome to dev-0s</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        /* Modern and responsive design styles */
-        body {
-            margin: 0;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            color: #333;
-        }
-        header {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 100px 0;
-            text-align: center;
-        }
-        header h1 {
-            font-size: 3em;
-            margin: 0;
-        }
-        header p {
-            font-size: 1.5em;
-            margin-top: 20px;
-        }
-        nav {
-            background: #fff;
-            padding: 10px 0;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        nav ul {
-            list-style: none;
-            display: flex;
-            justify-content: center;
-            padding-left: 0;
-            margin: 0;
-        }
-        nav ul li {
-            margin: 0 15px;
-        }
-        nav a {
-            text-decoration: none;
-            color: #333;
-            font-weight: bold;
-        }
-        section {
-            padding: 60px 20px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        section h2 {
-            font-size: 2em;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        section p {
-            font-size: 1.2em;
-            line-height: 1.6;
-        }
-        footer {
-            background: #333;
-            color: white;
-            text-align: center;
-            padding: 30px 0;
-            margin-top: 60px;
-        }
-        @media (max-width: 600px) {
-            header h1 {
-                font-size: 2em;
-            }
-            header p {
-                font-size: 1em;
-            }
-            nav ul {
-                flex-direction: column;
-                align-items: center;
-            }
-            nav ul li {
-                margin: 10px 0;
-            }
-        }
-    </style>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
 
-<header>
-    <h1>Welcome to dev-0s</h1>
-    <p>Your tagline goes here</p>
+<header class="bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-20 text-center">
+    <h1 class="text-5xl font-bold">Welcome to dev-0s</h1>
+    <p class="text-2xl mt-4">Your tagline goes here</p>
 </header>
 
-<nav>
-    <ul>
-        <li><a href="#about">About Me</a></li>
-        <li><a href="#projects">Projects</a></li>
-        <li><a href="#contact">Contact</a></li>
+<nav class="bg-white shadow">
+    <ul class="flex justify-center space-x-8 py-4">
+        <li><a href="#about" class="text-gray-700 font-semibold hover:text-indigo-600">About Me</a></li>
+        <li><a href="#projects" class="text-gray-700 font-semibold hover:text-indigo-600">Projects</a></li>
+        <li><a href="#contact" class="text-gray-700 font-semibold hover:text-indigo-600">Contact</a></li>
     </ul>
 </nav>
 
-<section id="about">
-    <h2>About Me</h2>
-    <p>
-        Ollie is my name
-    </p>
+<section id="about" class="py-16 px-4">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="text-4xl font-bold text-center mb-8">About Me</h2>
+        <p class="text-lg text-gray-700">
+            Introduce yourself here. Share your passions, skills, and what makes you unique. You can talk about your journey, education, or any interesting facts.
+        </p>
+    </div>
 </section>
 
-<section id="projects">
-    <h2>Projects</h2>
-    <p>
-        Projects
-    </p>
+<section id="projects" class="bg-gray-100 py-16 px-4">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="text-4xl font-bold text-center mb-8">Projects</h2>
+        <p class="text-lg text-gray-700">
+            Showcase your projects. Include brief descriptions and links to GitHub repositories or live demos. Highlight the technologies used and the challenges you overcame.
+        </p>
+    </div>
 </section>
 
-<section id="contact">
-    <h2>Contact</h2>
-    <p>
-        Contact
-    </p>
+<section id="contact" class="py-16 px-4">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="text-4xl font-bold text-center mb-8">Contact</h2>
+        <p class="text-lg text-gray-700">
+            Let visitors know how they can reach you. Provide your email address, LinkedIn profile, or any other preferred method of communication.
+        </p>
+    </div>
 </section>
 
-<footer>
+<footer class="bg-gray-800 text-white text-center py-6">
     &copy; 2024 dev-0s
 </footer>
 
