@@ -19,7 +19,7 @@
 
   <style>
     .header-container {
-      background: url('background.jpeg') no-repeat center center/cover;
+      background: url('background.jpg') no-repeat center center/cover;
       height: 100vh;
       position: relative;
       z-index: 1;
@@ -45,8 +45,29 @@
 </head>
 <body class="fade-scroll">
 
+<!-- Fixed Navbar -->
+<nav class="fixed top-0 left-0 w-full bg-white shadow-lg z-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center h-16">
+      <div class="flex items-center">
+        <a href="#" class="text-xl font-bold text-gray-800">dev-0s</a>
+      </div>
+      <div class="hidden md:flex space-x-8">
+        <a href="#about" class="text-gray-700 hover:text-indigo-600">About Me</a>
+        <a href="#projects" class="text-gray-700 hover:text-indigo-600">Projects</a>
+        <a href="#contact" class="text-gray-700 hover:text-indigo-600">Contact</a>
+      </div>
+      <div class="md:hidden">
+        <button id="mobile-menu-button" class="text-gray-700">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
 <!-- Header Section with Background Image -->
-<div class="header-container flex flex-col justify-center items-center">
+<div class="header-container flex flex-col justify-center items-center mt-16"> <!-- Added margin-top to account for fixed navbar -->
   <h1 class="text-5xl font-bold mb-4">Welcome to dev-0s</h1>
   <p class="text-2xl">Explore my journey in tech</p>
 
@@ -80,7 +101,7 @@
 </div>
 
 <!-- Content Box Section -->
-<section class="box-section">
+<section id="about" class="box-section">
   <div class="max-w-3xl mx-auto content-overlay">
     <h2 class="text-4xl font-bold text-center mb-4">About Me</h2>
     <p class="text-lg text-gray-700 leading-relaxed">
@@ -90,7 +111,7 @@
 </section>
 
 <!-- More Content Section -->
-<section class="box-section">
+<section id="projects" class="box-section">
   <div class="max-w-3xl mx-auto content-overlay">
     <h2 class="text-4xl font-bold text-center mb-4">Featured Work</h2>
     <p class="text-lg text-gray-700 leading-relaxed">
@@ -98,6 +119,24 @@
     </p>
   </div>
 </section>
+
+<!-- Contact Section -->
+<section id="contact" class="box-section">
+  <div class="max-w-3xl mx-auto content-overlay">
+    <h2 class="text-4xl font-bold text-center mb-4">Contact Me</h2>
+    <p class="text-lg text-gray-700 leading-relaxed">
+      You can reach out to me via the links above or send me an email directly.
+    </p>
+  </div>
+</section>
+
+<script>
+  // Mobile Menu Toggle (Optional)
+  const button = document.getElementById('mobile-menu-button');
+  button.addEventListener('click', () => {
+    alert('Mobile menu toggle implementation can be added here.');
+  });
+</script>
 
 </body>
 </html>
