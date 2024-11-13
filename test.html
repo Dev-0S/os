@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transparent Background Scroll Effect</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome CSS for icons -->
+  <link 
+    rel="stylesheet" 
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" 
+    integrity="sha512-Z3glD7yKnf1YoNbCzqRKc4Qyor8gaKUlqnm+CShxbuBusANl9QpRohGBreCFkKxLhlei6S9CQXFEbbKuLgB0DA==" 
+    crossorigin="anonymous" 
+    referrerpolicy="no-referrer"
+  />
+
+  <style>
+    .header-container {
+      background: url('your-background-image.jpg') no-repeat center center/cover;
+      height: 100vh;
+      position: relative;
+      z-index: 1;
+      color: white;
+      text-align: center;
+    }
+
+    .content-overlay {
+      background-color: rgba(255, 255, 255, 0.8);
+      padding: 50px;
+      border-radius: 10px;
+    }
+
+    .box-section {
+      background-color: white;
+      padding: 100px 20px;
+    }
+
+    .fade-scroll {
+      scroll-behavior: smooth;
+    }
+  </style>
+</head>
+<body class="fade-scroll">
+
+<!-- Header Section with Background Image -->
+<div class="header-container flex flex-col justify-center items-center">
+  <h1 class="text-5xl font-bold mb-4">Welcome to dev-0s</h1>
+  <p class="text-2xl">Explore my journey in tech</p>
+
+  <!-- Social Icons -->
+  <div class="flex space-x-6 mt-6">
+    <!-- LinkedIn -->
+    <a href="https://www.linkedin.com/in/your-profile" target="_blank" aria-label="LinkedIn" class="text-white hover:text-blue-300 transition-colors">
+      <i class="fab fa-linkedin fa-2x"></i>
+    </a>
+
+    <!-- Twitter -->
+    <a href="https://twitter.com/your-profile" target="_blank" aria-label="Twitter" class="text-white hover:text-blue-400 transition-colors">
+      <i class="fab fa-twitter fa-2x"></i>
+    </a>
+
+    <!-- Instagram -->
+    <a href="https://www.instagram.com/your-profile" target="_blank" aria-label="Instagram" class="text-white hover:text-pink-400 transition-colors">
+      <i class="fab fa-instagram fa-2x"></i>
+    </a>
+
+    <!-- GitHub -->
+    <a href="https://github.com/your-profile" target="_blank" aria-label="GitHub" class="text-white hover:text-gray-400 transition-colors">
+      <i class="fab fa-github fa-2x"></i>
+    </a>
+
+    <!-- Email -->
+    <a href="mailto:your-email@example.com" aria-label="Email" class="text-white hover:text-red-400 transition-colors">
+      <i class="fas fa-envelope fa-2x"></i>
+    </a>
+  </div>
+</div>
+
+<!-- Content Box Section -->
+<section class="box-section">
+  <div class="max-w-3xl mx-auto content-overlay">
+    <h2 class="text-4xl font-bold text-center mb-4">About Me</h2>
+    <p class="text-lg text-gray-700 leading-relaxed">
+      This is where you can talk about your background, experience, and aspirations. Add a story about your journey or significant milestones in your career.
+    </p>
+  </div>
+</section>
+
+<!-- More Content Section -->
+<section class="box-section">
+  <div class="max-w-3xl mx-auto content-overlay">
+    <h2 class="text-4xl font-bold text-center mb-4">Featured Work</h2>
+    <p class="text-lg text-gray-700 leading-relaxed">
+      Showcase your key projects and achievements. Include links to GitHub repositories, demos, or any external media.
+    </p>
+  </div>
+</section>
+
+</body>
+</html>
