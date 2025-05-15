@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>API Explorer</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    label, select, input, button { display: block; margin: .5rem 0; }
+    #response { white-space: pre-wrap; background:#f5f5f5; padding:1rem; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1>Get Trades / Transfers</h1>
+  <form id="apiForm">
+    <label>
+      Action:
+      <select id="action">
+        <option value="trades">Get Trades</option>
+        <option value="transfers">Get Transfers</option>
+      </select>
+    </label>
+    <label>
+      Venue Account ID:
+      <input type="text" id="venueAccountId" placeholder="e.g. 1234-ABCD" required />
+    </label>
+    <label>
+      Symbol:
+      <input type="text" id="symbol" placeholder="e.g. BTCUSD" required />
+    </label>
+    <label>
+      API Key:
+      <input type="text" id="apiKey" placeholder="your-api-key-here" required />
+    </label>
+    <button type="submit">Send</button>
+  </form>
+
+  <h2>Response</h2>
+  <div id="response">Waiting for your request…</div>
+
+  <script>
+    const form = document.getElementById('apiForm');
+    const respEl = document.getElementById('response');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const action  = document.getElementById('action').value;
+      const venue   = encodeURIComponent(document.getElementById('venueAccountId').value);
+      const symbol  = encodeURIComponent(document.getElementById('symbol').value);
+      const apiKey  = document.getElementById('apiKey').value.trim();
+
+      // build URL based on choice
+      const baseUrl = 'https://api.yourdomain.com'; // ← change to your real base URL
+      const url = `${baseUrl}/${action}?venueAccountId=${venue}&symbol=${symbol}`;
+
+      respEl.textContent = 'Loading…';
+
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'application/json'
+          }
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const data = await res.json();
+        respEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        respEl.textContent = 'Error: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
