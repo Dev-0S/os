@@ -59,8 +59,8 @@
         const res = await fetch(url, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'application/json'
+            'Authorization': `<${apiKey}>`,
+            'Content-Type': 'application/json'
           }
         });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
