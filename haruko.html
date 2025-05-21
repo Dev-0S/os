@@ -7,23 +7,25 @@
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f0f2f5;
+      background: #1e1e1e;
+      color: #eee;
       margin: 0;
       padding: 2rem;
       display: flex;
       justify-content: center;
     }
     .container {
-      background: #fff;
+      background: #2b2b2b;
       padding: 2rem;
       border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.7);
       max-width: 800px;
       width: 100%;
     }
     h1 {
       margin-bottom: 1rem;
       font-size: 1.75rem;
+      color: #d0bfff;
     }
     form {
       display: grid;
@@ -38,7 +40,9 @@
     }
     form input, form select {
       padding: 0.5rem;
-      border: 1px solid #ccc;
+      background: #3a3a3a;
+      color: #eee;
+      border: 1px solid #555;
       border-radius: 4px;
       font-size: 1rem;
     }
@@ -48,7 +52,7 @@
     button {
       grid-column: 1 / -1;
       padding: 0.75rem;
-      background-color: #007bff;
+      background-color: #6a0dad;
       color: white;
       border: none;
       border-radius: 4px;
@@ -56,10 +60,11 @@
       cursor: pointer;
     }
     button:hover {
-      background-color: #0056b3;
+      background-color: #4a007a;
     }
     #responseContainer {
       margin-top: 2rem;
+      color: #eee;
     }
     .response-table {
       width: 100%;
@@ -68,12 +73,17 @@
     }
     .response-table th,
     .response-table td {
-      border: 1px solid #ddd;
+      border: 1px solid #444;
       padding: 8px;
       text-align: left;
+      color: #eee;
     }
     .response-table th {
-      background-color: #f2f2f2;
+      background-color: #6a0dad;
+      color: #fff;
+    }
+    .response-table tr:nth-child(even) {
+      background: #2f2f2f;
     }
   </style>
 
@@ -81,104 +91,89 @@
     document.addEventListener('DOMContentLoaded', () => {
       const form = document.getElementById('apiForm');
       const responseContainer = document.getElementById('responseContainer');
-      const baseUrl = 'https://uk10.haruko.io:2044/cefi/api'; // ← change to your real base URL
+      const baseUrl1 = 'https://uk';
+      const baseUrl2 'haruko.io:2044/cefi/api';
 
       form.addEventListener('submit', e => {
         e.preventDefault();
         const apiKey  = document.getElementById('apiKey').value.trim();
+        const action  = document.getElementById('action').value;
+        const limit   = document.getElementById('limit').value;
         const file    = document.getElementById('csvFile').files[0];
 
-        responseContainer.textContent = 'Loading…';
-
-        if (file) {
-          // CSV upload path
-          const reader = new FileReader();
-          reader.onload = () => {
-            try {
-              const text = reader.result;
-              const lines = text.split(/\r?\n/).filter(l => l.trim());
-              const headers = lines[0].split(/\t|,/).map(h => h.trim());
-              const dataLines = lines.slice(1);
-
-              const trades = dataLines.map(line => {
-                const cols = line.split(/\t|,/).map(c => c.trim());
-                const row = headers.reduce((acc, h, i) => (acc[h] = cols[i], acc), {});
-                // parse TIMESTAMP => ms
-                const [date, hour, minute, second] = row['TIMESTAMP'].split(':');
-                const dt = `${date} ${hour}:${minute}:${second}`;
-                const millis = new Date(dt).getTime();
-
-                return {
-                  timestamp: millis,
-                  venueAccount: row['VENUE ACCOUNT'],
-                  venueAccountId: row['VENUE ACCOUNT ID'],
-                  venue: row['VENUE'],
-                  symbol: row['SYMBOL'],
-                  quantity: parseFloat(row['QUANTITY']),
-                  price: parseFloat(row['PRICE']),
-                  side: row['SIDE'],
-                  counterpartyType: row['COUNTERPARTY TYPE'],
-                  instrumentType: row['INSTRUMENT TYPE'],
-                  additionalDataFields: [
-                    { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'ENRICHMENT SOURCE', value: row['ENRICHMENT SOURCE'] },
-                    { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'BUNDLE',             value: row['BUNDLE'] },
-                    { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'BOOK',               value: row['BOOK'] },
-                    { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'PORTFOLIO',          value: row['PORTFOLIO'] },
-                    { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'ENTITY',             value: row['ENTITY'] }
-                  ]
-                };
-              });
-
-              const payload = { trades };
-              fetch(`${baseUrl}/trades`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `<${apiKey}>`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-              })
-              .then(res => {
-                if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-                return res.json();
-              })
-              .then(displayTable)
-              .catch(err => responseContainer.textContent = 'Error: ' + err.message);
-
-            } catch (err) {
-              responseContainer.textContent = 'CSV parse error: ' + err.message;
-            }
-          };
-          reader.readAsText(file);
-
-        } else {
-          // Regular GET path
-          const action = document.getElementById('action').value;
-          const venue  = encodeURIComponent(document.getElementById('venueAccountId').value);
-          const symbol = encodeURIComponent(document.getElementById('symbol').value);
-          const url = `${baseUrl}/${action}?venueAccountId=${venue}&symbol=${symbol}&latest=10`;
-
-          fetch(url, {
-            method: 'GET',
-            headers: {
-              'Authorization': `<${apiKey}>`,
-              'Content-Type': 'application/json'
-            }
-          })
-          .then(res => {
-            if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-            return res.json();
-          })
-          .then(data => {
-            // if wrapped (e.g. { trades: [...] }) unwrap automatically
-            const arr = Array.isArray(data) ? data
-                      : Array.isArray(data.trades) ? data.trades
-                      : Array.isArray(data.transfers) ? data.transfers
-                      : [];
-            displayTable(arr);
-          })
-          .catch(err => responseContainer.textContent = 'Error: ' + err.message);
+        if (!file) {
+          responseContainer.textContent = 'Please select a CSV file to upload.';
+          return;
         }
+
+        responseContainer.textContent = 'Uploading and processing…';
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const text = reader.result;
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
+            const headers = lines[0].split(/\t|,/).map(h => h.trim());
+            const dataLines = lines.slice(1).filter(l => l);
+
+            const records = dataLines.map(line => {
+              const cols = line.split(/\t|,/).map(c => c.trim());
+              const row = headers.reduce((acc, h, i) => (acc[h] = cols[i], acc), {});
+              const [date, hour, minute, second] = row['TIMESTAMP'].split(':');
+              const dt = `${date} ${hour}:${minute}:${second}`;
+              const millis = new Date(dt).getTime();
+
+              const obj = {
+                timestamp: millis,
+                venueAccount: row['VENUE ACCOUNT'],
+                venueAccountId: row['VENUE ACCOUNT ID'],
+                venue: row['VENUE'],
+                symbol: row['SYMBOL'],
+                quantity: parseFloat(row['QUANTITY']),
+                price: parseFloat(row['PRICE']),
+                side: row['SIDE'],
+                counterpartyType: row['COUNTERPARTY TYPE'],
+                instrumentType: row['INSTRUMENT TYPE'],
+                additionalDataFields: [
+                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'ENRICHMENT SOURCE', value: row['ENRICHMENT SOURCE'] },
+                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'BUNDLE',             value: row['BUNDLE'] },
+                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'BOOK',               value: row['BOOK'] },
+                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'PORTFOLIO',          value: row['PORTFOLIO'] },
+                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'ENTITY',             value: row['ENTITY'] }
+                ]
+              };
+              return obj;
+            });
+
+            const payload = { [action]: records };
+            const url = `${baseUrl1}${limit}${baseUrl2}/${action}`;
+
+            fetch(url, {
+              method: 'POST',
+              headers: {
+                'Authorization': `<${apiKey}>`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(payload)
+            })
+            .then(res => {
+              if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+              return res.json();
+            })
+            .then(arr => {
+              const data = Array.isArray(arr) ? arr
+                          : Array.isArray(arr.trades) ? arr.trades
+                          : Array.isArray(arr.transfers) ? arr.transfers
+                          : [];
+              displayTable(data);
+            })
+            .catch(err => responseContainer.textContent = 'Error: ' + err.message);
+
+          } catch (err) {
+            responseContainer.textContent = 'CSV parse error: ' + err.message;
+          }
+        };
+        reader.readAsText(file);
       });
 
       function displayTable(data) {
@@ -188,7 +183,6 @@
         }
         const table = document.createElement('table');
         table.className = 'response-table';
-        // headers
         const thead = table.createTHead();
         const headRow = thead.insertRow();
         Object.keys(data[0]).forEach(key => {
@@ -196,7 +190,6 @@
           th.textContent = key;
           headRow.appendChild(th);
         });
-        // body
         const tbody = table.createTBody();
         data.forEach(item => {
           const row = tbody.insertRow();
@@ -220,30 +213,30 @@
       <label>
         Action:
         <select id="action">
-          <option value="trades">Get Trades</option>
-          <option value="transfers">Get Transfers</option>
+          <option value="trades">Upload Trades</option>
+          <option value="transfers">Upload Transfers</option>
         </select>
       </label>
       <label>
-        Venue Account ID:
-        <input type="text" id="venueAccountId" placeholder="e.g. 1234-ABCD" required />
-      </label>
-      <label>
-        Symbol:
-        <input type="text" id="symbol" placeholder="e.g. BTCUSD" required />
+        Latest count:
+        <select id="limit">
+          <option value="8">8</option>
+          <option value="10" selected>10</option>
+        </select>
       </label>
       <label>
         API Key:
         <input type="text" id="apiKey" placeholder="your-api-key-here" required />
       </label>
       <label>
-        Or upload CSV:
-        <input type="file" id="csvFile" accept=".csv" />
+        CSV file:
+        <input type="file" id="csvFile" accept=".csv" required />
       </label>
       <button type="submit">Send</button>
     </form>
+
     <h2>Response</h2>
-    <div id="responseContainer">Waiting for your request…</div>
+    <div id="responseContainer">Waiting for your CSV…</div>
   </div>
 </body>
 </html>
