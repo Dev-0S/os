@@ -6,8 +6,8 @@
   <title>API Explorer</title>
   <style>
     :root {
-      --accent-light: rgba(41, 59, 70, 1);
-      --accent-dark:  rgba(17, 37, 49, 1); 
+      --accent-light: rgba(41, 59, 70, 1);  /* replaces purple header accents */
+      --accent-dark:  rgba(17, 37, 49, 1);  /* replaces purple button accents */
     }
 
     body {
@@ -104,6 +104,43 @@
       overflow-x: auto;
     }
   </style>
+</head>
+<body>
+  <div class="container">
+    <h1>API Explorer</h1>
+    <form id="apiForm" onsubmit="return false;">
+      <label>
+        Action:
+        <select id="action">
+          <option value="trades">Upload Trades</option>
+          <option value="transfers">Upload Transfers</option>
+        </select>
+      </label>
+      <label>
+        BIS / CSCM:
+        <select id="limit">
+          <option value="8">BIS</option>
+          <option value="10" selected>CSCM</option>
+        </select>
+      </label>
+      <label>
+        API Key:
+        <input type="text" id="apiKey" placeholder="your-api-key-here" required />
+      </label>
+      <label>
+        CSV file:
+        <input type="file" id="csvFile" accept=".csv" required />
+      </label>
+      <div class="buttons">
+        <button type="button" id="previewBtn">Preview CSV</button>
+        <button type="button" id="sendBtn">Send</button>
+      </div>
+    </form>
+
+    <div id="previewContainer">No preview yet.</div>
+    <div id="responseContainer">No response yet.</div>
+  </div>
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const actionEl = document.getElementById('action');
@@ -263,6 +300,39 @@
           if (arr.length) {
             const flat = arr.map(r => {
               const meta = (r.additionalDataFields||[]).reduce((a,f) => {
-                const k = f.key.replace(/ /g,'').replace(/ /g,'').charAt(0).toLowerCase() + f.key.slice(1).replace(/ /g,'');
-                a[k] = f.value; return a;
-              },
+                const key = f.key.toLowerCase().replace(/ /g,'');
+                a[key] = f.value;
+                return a;
+              }, {});
+              return {
+                timestamp:       r.timestamp,
+                venueAccount:    r.venueAccount,
+                venueAccountId:  r.venueAccountId,
+                venue:           r.venue,
+                symbol:          r.symbol,
+                quantity:        r.quantity,
+                price:           r.price,
+                side:            r.side,
+                counterpartyType:r.counterpartyType,
+                instrumentType:  r.instrumentType,
+                enrichmentSource:meta.enrichmentsource||'',
+                bundle:           meta.bundle||'',
+                entity:           meta.entity||'',
+                book:             meta.book||'',
+                portfolio:        meta.portfolio||''
+              };
+            });
+            renderTable(flat, responseContainer, 'Server Response');
+          } else {
+            responseContainer.innerHTML = `<h3>Raw JSON</h3>
+              <pre>${JSON.stringify(json,null,2)}</pre>`;
+          }
+        })
+        .catch(err => {
+          responseContainer.textContent = `Error: ${err.message}`;
+        });
+      });
+    });
+  </script>
+</body>
+</html>
