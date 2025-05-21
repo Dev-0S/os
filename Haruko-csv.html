@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>API Explorer</title>
+  <style>
+    :root {
+      --accent-light: rgba(41, 59, 70, 1);
+      --accent-dark:  rgba(17, 37, 49, 1); 
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1e1e1e;
+      color: #eee;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      background: #2b2b2b;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.7);
+      max-width: 800px;
+      width: 100%;
+    }
+    h1 {
+      margin-bottom: 1rem;
+      font-size: 1.75rem;
+      color: var(--accent-light);
+    }
+    form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+      gap: 1rem;
+      align-items: end;
+    }
+    form label {
+      display: flex;
+      flex-direction: column;
+      font-weight: 500;
+    }
+    form input, form select {
+      padding: 0.5rem;
+      background: #3a3a3a;
+      color: #eee;
+      border: 1px solid #555;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    .buttons {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 1rem;
+    }
+    .buttons button {
+      flex: 1;
+      padding: 0.75rem;
+      background-color: var(--accent-dark);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .buttons button:hover {
+      background-color: var(--accent-light);
+    }
+    #previewContainer, #responseContainer {
+      margin-top: 2rem;
+    }
+    .table-container {
+      overflow-x: auto;
+      max-height: 300px;
+      margin-top: 1rem;
+      border: 1px solid #444;
+      border-radius: 4px;
+    }
+    .response-table {
+      border-collapse: collapse;
+    }
+    .response-table th,
+    .response-table td {
+      border: 1px solid #444;
+      padding: 6px 12px;
+      text-align: left;
+      white-space: nowrap;
+      color: #eee;
+    }
+    .response-table th {
+      background-color: var(--accent-light);
+      color: #fff;
+    }
+    .response-table tr:nth-child(even) {
+      background: var(--accent-dark);
+    }
+    pre {
+      background: #272727;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const actionEl = document.getElementById('action');
+      const limitEl  = document.getElementById('limit');
+      const apiKeyEl = document.getElementById('apiKey');
+      const fileEl   = document.getElementById('csvFile');
+      const previewBtn = document.getElementById('previewBtn');
+      const sendBtn    = document.getElementById('sendBtn');
+      const previewContainer  = document.getElementById('previewContainer');
+      const responseContainer = document.getElementById('responseContainer');
+
+      const columns = [
+        { key:'timestamp',       label:'TIMESTAMP' },
+        { key:'venueAccount',    label:'VENUE ACCOUNT' },
+        { key:'venueAccountId',  label:'VENUE ACCOUNT ID' },
+        { key:'venue',           label:'VENUE' },
+        { key:'symbol',          label:'SYMBOL' },
+        { key:'quantity',        label:'QUANTITY' },
+        { key:'price',           label:'PRICE' },
+        { key:'side',            label:'SIDE' },
+        { key:'counterpartyType',label:'COUNTERPARTY TYPE' },
+        { key:'instrumentType',  label:'INSTRUMENT TYPE' },
+        { key:'enrichmentSource',label:'ENRICHMENT SOURCE' },
+        { key:'bundle',          label:'BUNDLE' },
+        { key:'entity',          label:'ENTITY' },
+        { key:'book',            label:'BOOK' },
+        { key:'portfolio',       label:'PORTFOLIO' }
+      ];
+
+      let parsedRecords = null;
+
+      function parseCSV() {
+        const file = fileEl.files[0];
+        if (!file) return Promise.reject(new Error('No CSV selected.'));
+        return new Promise((res, rej) => {
+          if (file._text) return res(file._text);
+          const reader = new FileReader();
+          reader.onload  = () => res(reader.result);
+          reader.onerror = () => rej(reader.error);
+          reader.readAsText(file);
+        }).then(txt => {
+          file._text = txt;
+          const lines   = txt.split(/\r?\n/).filter(l=>l.trim());
+          const headers = lines[0].split(/\t|,/).map(h=>h.trim());
+          return lines.slice(1).filter(l=>l).map(line => {
+            const cols = line.split(/\t|,/).map(c=>c.trim());
+            const r = headers.reduce((a,h,i)=>(a[h]=cols[i],a),{});
+            const [date, hour, min, sec] = r.TIMESTAMP.split(':');
+            const millis = new Date(`${date} ${hour}:${min}:${sec}`).getTime();
+            const add = [
+              { key:'ENRICHMENT SOURCE', value:r['ENRICHMENT SOURCE'] },
+              { key:'BUNDLE',             value:r.BUNDLE },
+              { key:'BOOK',               value:r.BOOK },
+              { key:'PORTFOLIO',          value:r.PORTFOLIO },
+              { key:'ENTITY',             value:r.ENTITY }
+            ].map(o=>({
+              objectIdType:'PRIMARY_KEY',
+              category:'Metadata',
+              key:o.key,
+              value:o.value
+            }));
+            return {
+              timestamp:       millis,
+              venueAccount:    r['VENUE ACCOUNT'],
+              venueAccountId:  r['VENUE ACCOUNT ID'],
+              venue:           r.VENUE,
+              symbol:          r.SYMBOL,
+              quantity:        parseFloat(r.QUANTITY),
+              price:           parseFloat(r.PRICE),
+              side:            r.SIDE,
+              counterpartyType:r['COUNTERPARTY TYPE'],
+              instrumentType:  r['INSTRUMENT TYPE'],
+              additionalDataFields: add,
+              enrichmentSource:r['ENRICHMENT SOURCE'],
+              bundle:          r.BUNDLE,
+              book:            r.BOOK,
+              portfolio:       r.PORTFOLIO,
+              entity:          r.ENTITY
+            };
+          });
+        });
+      }
+
+      function renderTable(records, container, title) {
+        container.innerHTML = `<h3>${title}</h3>`;
+        if (!records.length) {
+          container.innerHTML += '<p>No rows to display.</p>';
+          return;
+        }
+        const table = document.createElement('table');
+        table.className = 'response-table';
+        const thead = table.createTHead();
+        const hrow  = thead.insertRow();
+        columns.forEach(c => {
+          const th = document.createElement('th');
+          th.textContent = c.label;
+          hrow.appendChild(th);
+        });
+        const tbody = table.createTBody();
+        records.forEach(rec => {
+          const row = tbody.insertRow();
+          columns.forEach(c => {
+            const cell = row.insertCell();
+            cell.textContent = rec[c.key] != null ? rec[c.key] : '';
+          });
+        });
+        const wrap = document.createElement('div');
+        wrap.className = 'table-container';
+        wrap.appendChild(table);
+        container.appendChild(wrap);
+      }
+
+      previewBtn.addEventListener('click', () => {
+        previewContainer.textContent = 'Parsing CSV…';
+        parseCSV()
+          .then(recs => {
+            parsedRecords = recs;
+            renderTable(recs, previewContainer, 'CSV Preview');
+          })
+          .catch(err => {
+            previewContainer.textContent = `Preview error: ${err.message}`;
+          });
+      });
+
+      sendBtn.addEventListener('click', () => {
+        if (!parsedRecords) return alert('Please preview the CSV first.');
+        const action = actionEl.value;
+        const limit  = limitEl.value;
+        const apiKey = apiKeyEl.value.trim();
+        if (!apiKey) return alert('API Key required.');
+
+        const url = `https://uk${limit}.haruko.io:2044/cefi/api/${action}`;
+        const payload = { [action]: parsedRecords };
+
+        console.log('URL:', url);
+        console.log('Payload:', payload);
+
+        responseContainer.textContent = 'Sending request…';
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `<${apiKey}>`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(r => {
+          if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+          return r.json();
+        })
+        .then(json => {
+          console.log('Response JSON:', json);
+          const arr = Array.isArray(json)        ? json
+                    : Array.isArray(json.trades)   ? json.trades
+                    : Array.isArray(json.transfers)? json.transfers
+                    : [];
+          if (arr.length) {
+            const flat = arr.map(r => {
+              const meta = (r.additionalDataFields||[]).reduce((a,f) => {
+                const k = f.key.replace(/ /g,'').replace(/ /g,'').charAt(0).toLowerCase() + f.key.slice(1).replace(/ /g,'');
+                a[k] = f.value; return a;
+              },
