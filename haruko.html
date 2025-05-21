@@ -49,8 +49,13 @@
     form input[type="file"] {
       padding: 0.25rem;
     }
-    button {
+    .buttons {
       grid-column: 1 / -1;
+      display: flex;
+      gap: 1rem;
+    }
+    .buttons button {
+      flex: 1;
       padding: 0.75rem;
       background-color: #6a0dad;
       color: white;
@@ -59,12 +64,12 @@
       font-size: 1rem;
       cursor: pointer;
     }
-    button:hover {
+    .buttons button:hover {
       background-color: #4a007a;
     }
+    #previewContainer,
     #responseContainer {
       margin-top: 2rem;
-      color: #eee;
     }
     .response-table {
       width: 100%;
@@ -89,127 +94,182 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const form = document.getElementById('apiForm');
+      const actionEl = document.getElementById('action');
+      const limitEl  = document.getElementById('limit');
+      const apiKeyEl = document.getElementById('apiKey');
+      const fileEl   = document.getElementById('csvFile');
+      const previewBtn = document.getElementById('previewBtn');
+      const sendBtn    = document.getElementById('sendBtn');
+      const previewContainer  = document.getElementById('previewContainer');
       const responseContainer = document.getElementById('responseContainer');
-      const baseUrl1 = 'https://uk';
-      const baseUrl2 'haruko.io:2044/cefi/api';
 
-      form.addEventListener('submit', e => {
-        e.preventDefault();
-        const apiKey  = document.getElementById('apiKey').value.trim();
-        const action  = document.getElementById('action').value;
-        const limit   = document.getElementById('limit').value;
-        const file    = document.getElementById('csvFile').files[0];
+      let parsedRecords = null;
 
+      const readAndParse = () => {
+        const file = fileEl.files[0];
         if (!file) {
-          responseContainer.textContent = 'Please select a CSV file to upload.';
-          return;
+          alert('Select a CSV before previewing.');
+          return null;
         }
-
-        responseContainer.textContent = 'Uploading and processing…';
-
-        const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const text = reader.result;
-            const lines = text.split(/\r?\n/).filter(l => l.trim());
-            const headers = lines[0].split(/\t|,/).map(h => h.trim());
-            const dataLines = lines.slice(1).filter(l => l);
-
-            const records = dataLines.map(line => {
-              const cols = line.split(/\t|,/).map(c => c.trim());
-              const row = headers.reduce((acc, h, i) => (acc[h] = cols[i], acc), {});
-              const [date, hour, minute, second] = row['TIMESTAMP'].split(':');
-              const dt = `${date} ${hour}:${minute}:${second}`;
-              const millis = new Date(dt).getTime();
-
-              const obj = {
-                timestamp: millis,
-                venueAccount: row['VENUE ACCOUNT'],
-                venueAccountId: row['VENUE ACCOUNT ID'],
-                venue: row['VENUE'],
-                symbol: row['SYMBOL'],
-                quantity: parseFloat(row['QUANTITY']),
-                price: parseFloat(row['PRICE']),
-                side: row['SIDE'],
-                counterpartyType: row['COUNTERPARTY TYPE'],
-                instrumentType: row['INSTRUMENT TYPE'],
-                additionalDataFields: [
-                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'ENRICHMENT SOURCE', value: row['ENRICHMENT SOURCE'] },
-                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'BUNDLE',             value: row['BUNDLE'] },
-                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'BOOK',               value: row['BOOK'] },
-                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'PORTFOLIO',          value: row['PORTFOLIO'] },
-                  { objectIdType: 'PRIMARY_KEY', category: 'Metadata', key: 'ENTITY',             value: row['ENTITY'] }
-                ]
-              };
-              return obj;
-            });
-
-            const payload = { [action]: records };
-            const url = `${baseUrl1}${limit}${baseUrl2}/${action}`;
-
-            fetch(url, {
-              method: 'POST',
-              headers: {
-                'Authorization': `<${apiKey}>`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(payload)
-            })
-            .then(res => {
-              if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-              return res.json();
-            })
-            .then(arr => {
-              const data = Array.isArray(arr) ? arr
-                          : Array.isArray(arr.trades) ? arr.trades
-                          : Array.isArray(arr.transfers) ? arr.transfers
-                          : [];
-              displayTable(data);
-            })
-            .catch(err => responseContainer.textContent = 'Error: ' + err.message);
-
-          } catch (err) {
-            responseContainer.textContent = 'CSV parse error: ' + err.message;
+        const text = file._text; // reuse if already read
+        return new Promise((resolve, reject) => {
+          if (text) {
+            resolve(text);
+          } else {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsText(file);
           }
-        };
-        reader.readAsText(file);
+        }).then(txt => {
+          // cache raw text so send doesn't re-read
+          file._text = txt;
+          const lines = txt.split(/\r?\n/).filter(l => l.trim());
+          const headers = lines[0].split(/\t|,/).map(h => h.trim());
+          const rows = lines.slice(1).filter(l => l);
+          const records = rows.map(line => {
+            const cols = line.split(/\t|,/).map(c => c.trim());
+            const r = headers.reduce((acc,h,i)=>(acc[h]=cols[i],acc),{});
+            const [date, hour, minute, second] = r['TIMESTAMP'].split(':');
+            const dt = `${date} ${hour}:${minute}:${second}`;
+            const millis = new Date(dt).getTime();
+            return {
+              timestamp: millis,
+              venueAccount: r['VENUE ACCOUNT'],
+              venueAccountId: r['VENUE ACCOUNT ID'],
+              venue: r['VENUE'],
+              symbol: r['SYMBOL'],
+              quantity: parseFloat(r['QUANTITY']),
+              price: parseFloat(r['PRICE']),
+              side: r['SIDE'],
+              counterpartyType: r['COUNTERPARTY TYPE'],
+              instrumentType: r['INSTRUMENT TYPE'],
+              additionalDataFields: [
+                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'ENRICHMENT SOURCE',value:r['ENRICHMENT SOURCE']},
+                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'BUNDLE',value:r['BUNDLE']},
+                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'BOOK',value:r['BOOK']},
+                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'PORTFOLIO',value:r['PORTFOLIO']},
+                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'ENTITY',value:r['ENTITY']}
+              ]
+            };
+          });
+          return records;
+        });
+      };
+
+      previewBtn.addEventListener('click', () => {
+        previewContainer.textContent = 'Parsing CSV…';
+        readAndParse()
+          .then(records => {
+            parsedRecords = records;
+            if (!records || records.length === 0) {
+              previewContainer.textContent = 'No rows found';
+              return;
+            }
+            // render preview table
+            const table = document.createElement('table');
+            table.className = 'response-table';
+            const thead = table.createTHead();
+            const rowHead = thead.insertRow();
+            Object.keys(records[0]).forEach(k => {
+              const th = document.createElement('th');
+              th.textContent = k;
+              rowHead.appendChild(th);
+            });
+            const tbody = table.createTBody();
+            records.forEach(item => {
+              const row = tbody.insertRow();
+              Object.values(item).forEach(v => {
+                const cell = row.insertCell();
+                cell.textContent = (v !== null && typeof v === 'object')
+                  ? JSON.stringify(v)
+                  : v;
+              });
+            });
+            previewContainer.innerHTML = '<h3>CSV Preview</h3>';
+            previewContainer.appendChild(table);
+          })
+          .catch(err => {
+            previewContainer.textContent = 'Preview error: ' + err.message;
+          });
       });
 
-      function displayTable(data) {
-        if (!Array.isArray(data) || data.length === 0) {
-          responseContainer.textContent = 'No data to display';
+      sendBtn.addEventListener('click', () => {
+        if (!parsedRecords) {
+          alert('Please preview the CSV before sending.');
           return;
         }
-        const table = document.createElement('table');
-        table.className = 'response-table';
-        const thead = table.createTHead();
-        const headRow = thead.insertRow();
-        Object.keys(data[0]).forEach(key => {
-          const th = document.createElement('th');
-          th.textContent = key;
-          headRow.appendChild(th);
-        });
-        const tbody = table.createTBody();
-        data.forEach(item => {
-          const row = tbody.insertRow();
-          Object.values(item).forEach(v => {
-            const cell = row.insertCell();
-            cell.textContent = (v !== null && typeof v === 'object')
-              ? JSON.stringify(v)
-              : v;
+        const action = actionEl.value;
+        const limit  = limitEl.value; 
+        const apiKey = apiKeyEl.value.trim();
+        if (!apiKey) {
+          alert('API Key is required.');
+          return;
+        }
+
+        const url = `https://uk${limit}.haruko.io:2044/cefi/api/${action}`;
+        const payload = { [action]: parsedRecords };
+
+        console.log('Sending to:', url);
+        console.log('Payload:', payload);
+        responseContainer.textContent = 'Request sent…';
+
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `<${apiKey}>`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(res => {
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          return res.json();
+        })
+        .then(data => {
+          // unwrap if needed
+          const arr = Array.isArray(data) ? data
+                    : Array.isArray(data.trades)   ? data.trades
+                    : Array.isArray(data.transfers)? data.transfers
+                    : [];
+
+          if (arr.length === 0) {
+            responseContainer.textContent = 'No response data';
+            return;
+          }
+          const table = document.createElement('table');
+          table.className = 'response-table';
+          const thead = table.createTHead();
+          const rowHead = thead.insertRow();
+          Object.keys(arr[0]).forEach(k => {
+            const th = document.createElement('th');
+            th.textContent = k;
+            rowHead.appendChild(th);
           });
+          const tbody = table.createTBody();
+          arr.forEach(item => {
+            const row = tbody.insertRow();
+            Object.values(item).forEach(v => {
+              const cell = row.insertCell();
+              cell.textContent = (v !== null && typeof v === 'object')
+                ? JSON.stringify(v)
+                : v;
+            });
+          });
+          responseContainer.innerHTML = '<h3>Server Response</h3>';
+          responseContainer.appendChild(table);
+        })
+        .catch(err => {
+          responseContainer.textContent = 'Error: ' + err.message;
         });
-        responseContainer.innerHTML = '';
-        responseContainer.appendChild(table);
-      }
+      });
     });
   </script>
 </head>
 <body>
   <div class="container">
     <h1>API Explorer</h1>
-    <form id="apiForm">
+    <form id="apiForm" onsubmit="return false;">
       <label>
         Action:
         <select id="action">
@@ -232,11 +292,14 @@
         CSV file:
         <input type="file" id="csvFile" accept=".csv" required />
       </label>
-      <button type="submit">Send</button>
+      <div class="buttons">
+        <button type="button" id="previewBtn">Preview CSV</button>
+        <button type="button" id="sendBtn">Send</button>
+      </div>
     </form>
 
-    <h2>Response</h2>
-    <div id="responseContainer">Waiting for your CSV…</div>
+    <div id="previewContainer">No preview yet.</div>
+    <div id="responseContainer">No response yet.</div>
   </div>
 </body>
 </html>
