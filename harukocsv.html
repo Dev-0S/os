@@ -5,11 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>API Explorer</title>
   <style>
-    :root {
-      --accent-light: rgba(41, 59, 70, 1);  /* replaces purple header accents */
-      --accent-dark:  rgba(17, 37, 49, 1);  /* replaces purple button accents */
-    }
-
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #1e1e1e;
@@ -30,7 +25,7 @@
     h1 {
       margin-bottom: 1rem;
       font-size: 1.75rem;
-      color: var(--accent-light);
+      color: #d0bfff;
     }
     form {
       display: grid;
@@ -59,7 +54,7 @@
     .buttons button {
       flex: 1;
       padding: 0.75rem;
-      background-color: var(--accent-dark);
+      background-color: #6a0dad; /* purple */
       color: white;
       border: none;
       border-radius: 4px;
@@ -67,7 +62,7 @@
       cursor: pointer;
     }
     .buttons button:hover {
-      background-color: var(--accent-light);
+      background-color: #4a007a; /* darker purple */
     }
     #previewContainer, #responseContainer {
       margin-top: 2rem;
@@ -91,11 +86,11 @@
       color: #eee;
     }
     .response-table th {
-      background-color: var(--accent-light);
+      background-color: #6a0dad; /* purple */
       color: #fff;
     }
     .response-table tr:nth-child(even) {
-      background: var(--accent-dark);
+      background: #2f2f2f;
     }
     pre {
       background: #272727;
@@ -152,22 +147,28 @@
       const previewContainer  = document.getElementById('previewContainer');
       const responseContainer = document.getElementById('responseContainer');
 
-      const columns = [
-        { key:'timestamp',       label:'TIMESTAMP' },
-        { key:'venueAccount',    label:'VENUE ACCOUNT' },
-        { key:'venueAccountId',  label:'VENUE ACCOUNT ID' },
-        { key:'venue',           label:'VENUE' },
-        { key:'symbol',          label:'SYMBOL' },
-        { key:'quantity',        label:'QUANTITY' },
-        { key:'price',           label:'PRICE' },
-        { key:'side',            label:'SIDE' },
-        { key:'counterpartyType',label:'COUNTERPARTY TYPE' },
-        { key:'instrumentType',  label:'INSTRUMENT TYPE' },
-        { key:'enrichmentSource',label:'ENRICHMENT SOURCE' },
-        { key:'bundle',          label:'BUNDLE' },
-        { key:'entity',          label:'ENTITY' },
-        { key:'book',            label:'BOOK' },
-        { key:'portfolio',       label:'PORTFOLIO' }
+      const columnsTrades = [
+        'timestamp','venueAccount','venueAccountId','venue','symbol',
+        'quantity','price','side','counterpartyType','instrumentType',
+        'enrichmentSource','bundle','entity','book','portfolio'
+      ];
+      const labelsTrades = [
+        'TIMESTAMP','VENUE ACCOUNT','VENUE ACCOUNT ID','VENUE','SYMBOL',
+        'QUANTITY','PRICE','SIDE','COUNTERPARTY TYPE','INSTRUMENT TYPE',
+        'ENRICHMENT SOURCE','BUNDLE','ENTITY','BOOK','PORTFOLIO'
+      ];
+
+      const columnsTransfers = [
+        'timestamp','venueAccount','venueAccountId','venue','asset',
+        'size','fee','type','counterpartyType','counterpartyId',
+        'address','network','account','transactionId','strategy','user',
+        'enrichmentSource','bundle','entity','book','portfolio'
+      ];
+      const labelsTransfers = [
+        'TIMESTAMP','VENUE ACCOUNT','VENUE ACCOUNT ID','VENUE','ASSET',
+        'SIZE','FEE','TYPE','COUNTERPARTY TYPE','COUNTERPARTY ID',
+        'ADDRESS','NETWORK','ACCOUNT','TRANSACTION ID','STRATEGY','USER',
+        'ENRICHMENT SOURCE','BUNDLE','ENTITY','BOOK','PORTFOLIO'
       ];
 
       let parsedRecords = null;
@@ -183,48 +184,76 @@
           reader.readAsText(file);
         }).then(txt => {
           file._text = txt;
-          const lines   = txt.split(/\r?\n/).filter(l=>l.trim());
-          const headers = lines[0].split(/\t|,/).map(h=>h.trim());
-          return lines.slice(1).filter(l=>l).map(line => {
-            const cols = line.split(/\t|,/).map(c=>c.trim());
-            const r = headers.reduce((a,h,i)=>(a[h]=cols[i],a),{});
-            const [date, hour, min, sec] = r.TIMESTAMP.split(':');
+          const lines   = txt.split(/\r?\n/).filter(l => l.trim());
+          const headers = lines[0].split(/\t|,/).map(h => h.trim());
+          const rows    = lines.slice(1).filter(l => l);
+          return rows.map(line => {
+            const cols = line.split(/\t|,/).map(c => c.trim());
+            const r    = headers.reduce((a,h,i)=>(a[h]=cols[i],a),{});
+            const [date, hour, min, sec] = r['TIMESTAMP'].split(':');
             const millis = new Date(`${date} ${hour}:${min}:${sec}`).getTime();
-            const add = [
-              { key:'ENRICHMENT SOURCE', value:r['ENRICHMENT SOURCE'] },
-              { key:'BUNDLE',             value:r.BUNDLE },
-              { key:'BOOK',               value:r.BOOK },
-              { key:'PORTFOLIO',          value:r.PORTFOLIO },
-              { key:'ENTITY',             value:r.ENTITY }
-            ].map(o=>({
-              objectIdType:'PRIMARY_KEY',
-              category:'Metadata',
-              key:o.key,
-              value:o.value
+
+            // common metadata fields
+            const metaFields = [
+              'ENRICHMENT SOURCE','BUNDLE','BOOK','PORTFOLIO','ENTITY'
+            ].map(key => ({
+              objectIdType: 'PRIMARY_KEY',
+              category: 'Metadata',
+              key,
+              value: r[key]
             }));
-            return {
-              timestamp:       millis,
-              venueAccount:    r['VENUE ACCOUNT'],
-              venueAccountId:  r['VENUE ACCOUNT ID'],
-              venue:           r.VENUE,
-              symbol:          r.SYMBOL,
-              quantity:        parseFloat(r.QUANTITY),
-              price:           parseFloat(r.PRICE),
-              side:            r.SIDE,
-              counterpartyType:r['COUNTERPARTY TYPE'],
-              instrumentType:  r['INSTRUMENT TYPE'],
-              additionalDataFields: add,
-              enrichmentSource:r['ENRICHMENT SOURCE'],
-              bundle:          r.BUNDLE,
-              book:            r.BOOK,
-              portfolio:       r.PORTFOLIO,
-              entity:          r.ENTITY
-            };
+
+            if (actionEl.value === 'transfers') {
+              return {
+                timestamp:       millis,
+                venueAccount:    r['VENUE ACCOUNT'],
+                venueAccountId:  parseInt(r['VENUE ACCOUNT ID'],10),
+                venue:           r['VENUE'],
+                asset:           r['ASSET'],
+                size:            parseFloat(r['SIZE']),
+                fee:             parseFloat(r['FEE']),
+                type:            r['TYPE'],
+                counterpartyType:r['COUNTERPARTY TYPE'],
+                counterpartyId:  r['COUNTERPARTY ID'] || '',
+                address:         r['ADDRESS'] || '',
+                network:         r['NETWORK'] || '',
+                account:         r['ACCOUNT'] || '',
+                transactionId:   r['TRANSACTION ID'] || '',
+                strategy:        r['STRATEGY'] || '',
+                user:            r['USER'] || '',
+                additionalDataFields: metaFields,
+                enrichmentSource: r['ENRICHMENT SOURCE'],
+                bundle:           r['BUNDLE'],
+                entity:           r['ENTITY'],
+                book:             r['BOOK'],
+                portfolio:        r['PORTFOLIO']
+              };
+            } else {
+              // trades
+              return {
+                timestamp:       millis,
+                venueAccount:    r['VENUE ACCOUNT'],
+                venueAccountId:  r['VENUE ACCOUNT ID'],
+                venue:           r['VENUE'],
+                symbol:          r['SYMBOL'],
+                quantity:        parseFloat(r['QUANTITY']),
+                price:           parseFloat(r['PRICE']),
+                side:            r['SIDE'],
+                counterpartyType:r['COUNTERPARTY TYPE'],
+                instrumentType:  r['INSTRUMENT TYPE'],
+                additionalDataFields: metaFields,
+                enrichmentSource: r['ENRICHMENT SOURCE'],
+                bundle:           r['BUNDLE'],
+                entity:           r['ENTITY'],
+                book:             r['BOOK'],
+                portfolio:        r['PORTFOLIO']
+              };
+            }
           });
         });
       }
 
-      function renderTable(records, container, title) {
+      function renderTable(records, container, cols, labels, title) {
         container.innerHTML = `<h3>${title}</h3>`;
         if (!records.length) {
           container.innerHTML += '<p>No rows to display.</p>';
@@ -234,17 +263,17 @@
         table.className = 'response-table';
         const thead = table.createTHead();
         const hrow  = thead.insertRow();
-        columns.forEach(c => {
+        labels.forEach(lbl => {
           const th = document.createElement('th');
-          th.textContent = c.label;
+          th.textContent = lbl;
           hrow.appendChild(th);
         });
         const tbody = table.createTBody();
         records.forEach(rec => {
           const row = tbody.insertRow();
-          columns.forEach(c => {
+          cols.forEach(key => {
             const cell = row.insertCell();
-            cell.textContent = rec[c.key] != null ? rec[c.key] : '';
+            cell.textContent = rec[key] != null ? rec[key] : '';
           });
         });
         const wrap = document.createElement('div');
@@ -258,7 +287,13 @@
         parseCSV()
           .then(recs => {
             parsedRecords = recs;
-            renderTable(recs, previewContainer, 'CSV Preview');
+            if (actionEl.value === 'transfers') {
+              renderTable(recs, previewContainer,
+                columnsTransfers, labelsTransfers, 'CSV Preview (Transfers)');
+            } else {
+              renderTable(recs, previewContainer,
+                columnsTrades, labelsTrades, 'CSV Preview (Trades)');
+            }
           })
           .catch(err => {
             previewContainer.textContent = `Preview error: ${err.message}`;
@@ -266,11 +301,17 @@
       });
 
       sendBtn.addEventListener('click', () => {
-        if (!parsedRecords) return alert('Please preview the CSV first.');
+        if (!parsedRecords) {
+          alert('Please preview the CSV first.');
+          return;
+        }
         const action = actionEl.value;
         const limit  = limitEl.value;
         const apiKey = apiKeyEl.value.trim();
-        if (!apiKey) return alert('API Key required.');
+        if (!apiKey) {
+          alert('API Key required.');
+          return;
+        }
 
         const url = `https://uk${limit}.haruko.io:2044/cefi/api/${action}`;
         const payload = { [action]: parsedRecords };
@@ -293,36 +334,68 @@
         })
         .then(json => {
           console.log('Response JSON:', json);
-          const arr = Array.isArray(json)        ? json
-                    : Array.isArray(json.trades)   ? json.trades
-                    : Array.isArray(json.transfers)? json.transfers
-                    : [];
+          let arr = Array.isArray(json)       ? json
+                  : Array.isArray(json.trades)   ? json.trades
+                  : Array.isArray(json.transfers)? json.transfers
+                  : [];
           if (arr.length) {
+            // flatten server response for display
             const flat = arr.map(r => {
               const meta = (r.additionalDataFields||[]).reduce((a,f) => {
-                const key = f.key.toLowerCase().replace(/ /g,'');
-                a[key] = f.value;
+                a[f.key.replace(/ /g,'').toLowerCase()] = f.value;
                 return a;
               }, {});
-              return {
-                timestamp:       r.timestamp,
-                venueAccount:    r.venueAccount,
-                venueAccountId:  r.venueAccountId,
-                venue:           r.venue,
-                symbol:          r.symbol,
-                quantity:        r.quantity,
-                price:           r.price,
-                side:            r.side,
-                counterpartyType:r.counterpartyType,
-                instrumentType:  r.instrumentType,
-                enrichmentSource:meta.enrichmentsource||'',
-                bundle:           meta.bundle||'',
-                entity:           meta.entity||'',
-                book:             meta.book||'',
-                portfolio:        meta.portfolio||''
-              };
+              if (action === 'transfers') {
+                return {
+                  timestamp:       r.timestamp,
+                  venueAccount:    r.venueAccount,
+                  venueAccountId:  r.venueAccountId,
+                  venue:           r.venue,
+                  asset:           r.asset,
+                  size:            r.size,
+                  fee:             r.fee,
+                  type:            r.type,
+                  counterpartyType:r.counterpartyType,
+                  counterpartyId:  r.counterpartyId || '',
+                  address:         r.address || '',
+                  network:         r.network || '',
+                  account:         r.account || '',
+                  transactionId:   r.transactionId || '',
+                  strategy:        r.strategy || '',
+                  user:            r.user || '',
+                  enrichmentSource:meta['enrichmentsource']||'',
+                  bundle:           meta['bundle']||'',
+                  entity:           meta['entity']||'',
+                  book:             meta['book']||'',
+                  portfolio:        meta['portfolio']||''
+                };
+              } else {
+                return {
+                  timestamp:       r.timestamp,
+                  venueAccount:    r.venueAccount,
+                  venueAccountId:  r.venueAccountId,
+                  venue:           r.venue,
+                  symbol:          r.symbol,
+                  quantity:        r.quantity,
+                  price:           r.price,
+                  side:            r.side,
+                  counterpartyType:r.counterpartyType,
+                  instrumentType:  r.instrumentType,
+                  enrichmentSource:meta['enrichmentsource']||'',
+                  bundle:           meta['bundle']||'',
+                  entity:           meta['entity']||'',
+                  book:             meta['book']||'',
+                  portfolio:        meta['portfolio']||''
+                };
+              }
             });
-            renderTable(flat, responseContainer, 'Server Response');
+            if (action === 'transfers') {
+              renderTable(flat, responseContainer,
+                columnsTransfers, labelsTransfers, 'Server Response (Transfers)');
+            } else {
+              renderTable(flat, responseContainer,
+                columnsTrades, labelsTrades, 'Server Response (Trades)');
+            }
           } else {
             responseContainer.innerHTML = `<h3>Raw JSON</h3>
               <pre>${JSON.stringify(json,null,2)}</pre>`;
