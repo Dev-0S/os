@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src  'self' 'unsafe-inline';
+      style-src   'self' 'unsafe-inline';
+      object-src  'none';
+      base-uri    'self';
+      frame-ancestors 'none';
+    " />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>API Explorer</title>
   <style>
@@ -25,7 +33,7 @@
     h1 {
       margin-bottom: 1rem;
       font-size: 1.75rem;
-      color: #d0bfff;
+      color: #d0bfff; /* purple accent */
     }
     form {
       display: grid;
@@ -46,9 +54,6 @@
       border-radius: 4px;
       font-size: 1rem;
     }
-    form input[type="file"] {
-      padding: 0.25rem;
-    }
     .buttons {
       grid-column: 1 / -1;
       display: flex;
@@ -57,7 +62,7 @@
     .buttons button {
       flex: 1;
       padding: 0.75rem;
-      background-color: #6a0dad;
+      background-color: #6a0dad; /* purple */
       color: white;
       border: none;
       border-radius: 4px;
@@ -65,10 +70,9 @@
       cursor: pointer;
     }
     .buttons button:hover {
-      background-color: #4a007a;
+      background-color: #4a007a; /* darker purple */
     }
-    #previewContainer,
-    #responseContainer {
+    #previewContainer, #responseContainer {
       margin-top: 2rem;
     }
     .table-container {
@@ -79,20 +83,18 @@
       border-radius: 4px;
     }
     .response-table {
-      width: 100%;
       border-collapse: collapse;
     }
     .response-table th,
     .response-table td {
       border: 1px solid #444;
-      padding: 6px;
+      padding: 6px 12px;
       text-align: left;
-      white-space: pre-wrap;
-      word-break: break-word;
+      white-space: nowrap;
       color: #eee;
     }
     .response-table th {
-      background-color: #6a0dad;
+      background-color: #6a0dad; /* purple */
       color: #fff;
     }
     .response-table tr:nth-child(even) {
@@ -105,155 +107,6 @@
       overflow-x: auto;
     }
   </style>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const actionEl = document.getElementById('action');
-      const limitEl  = document.getElementById('limit');
-      const apiKeyEl = document.getElementById('apiKey');
-      const fileEl   = document.getElementById('csvFile');
-      const previewBtn = document.getElementById('previewBtn');
-      const sendBtn    = document.getElementById('sendBtn');
-      const previewContainer  = document.getElementById('previewContainer');
-      const responseContainer = document.getElementById('responseContainer');
-
-      let parsedRecords = null;
-
-      function parseCSV() {
-        const file = fileEl.files[0];
-        if (!file) return Promise.reject(new Error('No CSV selected.'));
-        return new Promise((resolve, reject) => {
-          if (file._text) return resolve(file._text);
-          const r = new FileReader();
-          r.onload = () => resolve(r.result);
-          r.onerror = () => reject(r.error);
-          r.readAsText(file);
-        }).then(txt => {
-          file._text = txt; // cache it
-          const lines = txt.split(/\r?\n/).filter(l => l.trim());
-          const headers = lines[0].split(/\t|,/).map(h => h.trim());
-          return lines.slice(1).filter(l => l).map(line => {
-            const cols = line.split(/\t|,/).map(c => c.trim());
-            const row = headers.reduce((acc,h,i)=>(acc[h]=cols[i],acc),{});
-            const [date, hour, minute, second] = row.TIMESTAMP.split(':');
-            const dt = `${date} ${hour}:${minute}:${second}`;
-            const millis = new Date(dt).getTime();
-            return {
-              timestamp: millis,
-              venueAccount: row['VENUE ACCOUNT'],
-              venueAccountId: row['VENUE ACCOUNT ID'],
-              venue: row.VENUE,
-              symbol: row.SYMBOL,
-              quantity: parseFloat(row.QUANTITY),
-              price: parseFloat(row.PRICE),
-              side: row.SIDE,
-              counterpartyType: row['COUNTERPARTY TYPE'],
-              instrumentType: row['INSTRUMENT TYPE'],
-              additionalDataFields: [
-                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'ENRICHMENT SOURCE',value:row['ENRICHMENT SOURCE']},
-                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'BUNDLE',            value:row.BUNDLE},
-                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'BOOK',              value:row.BOOK},
-                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'PORTFOLIO',         value:row.PORTFOLIO},
-                {objectIdType:'PRIMARY_KEY',category:'Metadata',key:'ENTITY',            value:row.ENTITY}
-              ]
-            };
-          });
-        });
-      }
-
-      function renderTable(records, container, title) {
-        container.innerHTML = `<h3>${title}</h3>`;
-        if (!Array.isArray(records) || records.length === 0) {
-          container.innerHTML += '<p>No rows to display.</p>';
-          return;
-        }
-        const table = document.createElement('table');
-        table.className = 'response-table';
-        const thead = table.createTHead();
-        const headRow = thead.insertRow();
-        Object.keys(records[0]).forEach(k => {
-          const th = document.createElement('th');
-          th.textContent = k;
-          headRow.appendChild(th);
-        });
-        const tbody = table.createTBody();
-        records.forEach(rec => {
-          const row = tbody.insertRow();
-          Object.values(rec).forEach(v => {
-            const cell = row.insertCell();
-            cell.textContent = (v !== null && typeof v === 'object')
-              ? JSON.stringify(v)
-              : String(v);
-          });
-        });
-        const wrapper = document.createElement('div');
-        wrapper.className = 'table-container';
-        wrapper.appendChild(table);
-        container.appendChild(wrapper);
-      }
-
-      previewBtn.addEventListener('click', () => {
-        previewContainer.textContent = 'Parsing CSV…';
-        parseCSV()
-          .then(recs => {
-            parsedRecords = recs;
-            renderTable(recs, previewContainer, 'CSV Preview');
-          })
-          .catch(err => {
-            previewContainer.textContent = `Preview error: ${err.message}`;
-          });
-      });
-
-      sendBtn.addEventListener('click', () => {
-        if (!parsedRecords) {
-          alert('Please preview the CSV before sending.');
-          return;
-        }
-        const action = actionEl.value;
-        const limit  = limitEl.value;
-        const apiKey = apiKeyEl.value.trim();
-        if (!apiKey) {
-          alert('API Key is required.');
-          return;
-        }
-        const url = `https://uk${limit}.haruko.io:2044/cefi/api/${action}`;
-        const payload = { [action]: parsedRecords };
-
-        console.log('URL →', url);
-        console.log('Payload →', payload);
-
-        responseContainer.textContent = 'Sending request…';
-        fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': `<${apiKey}>`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        })
-        .then(r => {
-          if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-          return r.json();
-        })
-        .then(json => {
-          console.log('Response JSON →', json);
-          // unwrap if array stems from trades/transfers
-          const arr = Array.isArray(json)       ? json
-                    : Array.isArray(json.trades)   ? json.trades
-                    : Array.isArray(json.transfers)? json.transfers
-                    : null;
-          if (arr) {
-            renderTable(arr, responseContainer, 'Server Response');
-          } else {
-            responseContainer.innerHTML = '<h3>Raw JSON Response</h3>'
-              + `<pre>${JSON.stringify(json, null, 2)}</pre>`;
-          }
-        })
-        .catch(err => {
-          responseContainer.textContent = `Error: ${err.message}`;
-        });
-      });
-    });
-  </script>
 </head>
 <body>
   <div class="container">
@@ -290,5 +143,270 @@
     <div id="previewContainer">No preview yet.</div>
     <div id="responseContainer">No response yet.</div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const actionEl = document.getElementById('action');
+      const limitEl  = document.getElementById('limit');
+      const apiKeyEl = document.getElementById('apiKey');
+      const fileEl   = document.getElementById('csvFile');
+      const previewBtn = document.getElementById('previewBtn');
+      const sendBtn    = document.getElementById('sendBtn');
+      const previewContainer  = document.getElementById('previewContainer');
+      const responseContainer = document.getElementById('responseContainer');
+
+      const columnsTrades = [
+        'timestamp','venueAccount','venueAccountId','venue','symbol',
+        'quantity','price','side','counterpartyType','instrumentType',
+        'enrichmentSource','bundle','entity','book','portfolio'
+      ];
+      const labelsTrades = [
+        'TIMESTAMP','VENUE ACCOUNT','VENUE ACCOUNT ID','VENUE','SYMBOL',
+        'QUANTITY','PRICE','SIDE','COUNTERPARTY TYPE','INSTRUMENT TYPE',
+        'ENRICHMENT SOURCE','BUNDLE','ENTITY','BOOK','PORTFOLIO'
+      ];
+
+      const columnsTransfers = [
+        'timestamp','venueAccount','venueAccountId','venue','asset',
+        'size','fee','type','counterpartyType','counterpartyId',
+        'address','network','account','transactionId','strategy','user',
+        'enrichmentSource','bundle','entity','book','portfolio'
+      ];
+      const labelsTransfers = [
+        'TIMESTAMP','VENUE ACCOUNT','VENUE ACCOUNT ID','VENUE','ASSET',
+        'SIZE','FEE','TYPE','COUNTERPARTY TYPE','COUNTERPARTY ID',
+        'ADDRESS','NETWORK','ACCOUNT','TRANSACTION ID','STRATEGY','USER',
+        'ENRICHMENT SOURCE','BUNDLE','ENTITY','BOOK','PORTFOLIO'
+      ];
+
+      let parsedRecords = null;
+
+      function parseCSV() {
+        const file = fileEl.files[0];
+        if (!file) return Promise.reject(new Error('No CSV selected.'));
+        return new Promise((res, rej) => {
+          if (file._text) return res(file._text);
+          const reader = new FileReader();
+          reader.onload  = () => res(reader.result);
+          reader.onerror = () => rej(reader.error);
+          reader.readAsText(file);
+        }).then(txt => {
+          file._text = txt;
+          const lines   = txt.split(/\r?\n/).filter(l => l.trim());
+          const headers = lines[0].split(/\t|,/).map(h => h.trim());
+          const rows    = lines.slice(1).filter(l => l);
+          return rows.map(line => {
+            const cols = line.split(/\t|,/).map(c => c.trim());
+            const r    = headers.reduce((a,h,i)=>(a[h]=cols[i],a),{});
+            const [date, hour, min, sec] = r['TIMESTAMP'].split(':');
+            const millis = new Date(`${date} ${hour}:${min}:${sec}`).getTime();
+
+            const metaFields = [
+              'ENRICHMENT SOURCE','BUNDLE','BOOK','PORTFOLIO','ENTITY'
+            ].map(key => ({
+              objectIdType: 'PRIMARY_KEY',
+              category: 'Metadata',
+              key,
+              value: r[key]
+            }));
+
+            if (actionEl.value === 'transfers') {
+              return {
+                timestamp:       millis,
+                venueAccount:    r['VENUE ACCOUNT'],
+                venueAccountId:  parseInt(r['VENUE ACCOUNT ID'],10),
+                venue:           r['VENUE'],
+                asset:           r['ASSET'],
+                size:            parseFloat(r['SIZE']),
+                fee:             parseFloat(r['FEE']),
+                type:            r['TYPE'],
+                counterpartyType:r['COUNTERPARTY TYPE'],
+                counterpartyId:  r['COUNTERPARTY ID'] || '',
+                address:         r['ADDRESS'] || '',
+                network:         r['NETWORK'] || '',
+                account:         r['ACCOUNT'] || '',
+                transactionId:   r['TRANSACTION ID'] || '',
+                strategy:        r['STRATEGY'] || '',
+                user:            r['USER'] || '',
+                additionalDataFields: metaFields,
+                enrichmentSource: r['ENRICHMENT SOURCE'],
+                bundle:           r['BUNDLE'],
+                entity:           r['ENTITY'],
+                book:             r['BOOK'],
+                portfolio:        r['PORTFOLIO']
+              };
+            } else {
+              return {
+                timestamp:       millis,
+                venueAccount:    r['VENUE ACCOUNT'],
+                venueAccountId:  r['VENUE ACCOUNT ID'],
+                venue:           r['VENUE'],
+                symbol:          r['SYMBOL'],
+                quantity:        parseFloat(r['QUANTITY']),
+                price:           parseFloat(r['PRICE']),
+                side:            r['SIDE'],
+                counterpartyType:r['COUNTERPARTY TYPE'],
+                instrumentType:  r['INSTRUMENT TYPE'],
+                additionalDataFields: metaFields,
+                enrichmentSource: r['ENRICHMENT SOURCE'],
+                bundle:           r['BUNDLE'],
+                entity:           r['ENTITY'],
+                book:             r['BOOK'],
+                portfolio:        r['PORTFOLIO']
+              };
+            }
+          });
+        });
+      }
+
+      function renderTable(records, container, cols, labels, title) {
+        container.innerHTML = `<h3>${title}</h3>`;
+        if (!records.length) {
+          container.innerHTML += '<p>No rows to display.</p>';
+          return;
+        }
+        const table = document.createElement('table');
+        table.className = 'response-table';
+        const thead = table.createTHead();
+        const hrow  = thead.insertRow();
+        labels.forEach(lbl => {
+          const th = document.createElement('th');
+          th.textContent = lbl;
+          hrow.appendChild(th);
+        });
+        const tbody = table.createTBody();
+        records.forEach(rec => {
+          const row = tbody.insertRow();
+          cols.forEach(key => {
+            const cell = row.insertCell();
+            cell.textContent = rec[key] != null ? rec[key] : '';
+          });
+        });
+        const wrap = document.createElement('div');
+        wrap.className = 'table-container';
+        wrap.appendChild(table);
+        container.appendChild(wrap);
+      }
+
+      previewBtn.addEventListener('click', () => {
+        previewContainer.textContent = 'Parsing CSV…';
+        parseCSV()
+          .then(recs => {
+            parsedRecords = recs;
+            if (actionEl.value === 'transfers') {
+              renderTable(recs, previewContainer,
+                columnsTransfers, labelsTransfers, 'CSV Preview (Transfers)');
+            } else {
+              renderTable(recs, previewContainer,
+                columnsTrades, labelsTrades, 'CSV Preview (Trades)');
+            }
+          })
+          .catch(err => {
+            previewContainer.textContent = `Preview error: ${err.message}`;
+          });
+      });
+
+      sendBtn.addEventListener('click', () => {
+        if (!parsedRecords) {
+          alert('Please preview the CSV first.');
+          return;
+        }
+        const action = actionEl.value;
+        const limit  = limitEl.value;
+        const apiKey = apiKeyEl.value.trim();
+        if (!apiKey) {
+          alert('API Key required.');
+          return;
+        }
+
+        const url = `https://uk${limit}.haruko.io:2044/cefi/api/${action}`;
+        const payload = { [action]: parsedRecords };
+
+        responseContainer.textContent = 'Sending request…';
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `<${apiKey}>`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(r => {
+          if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+          return r.json();
+        })
+        .then(json => {
+          let arr = Array.isArray(json)       ? json
+                  : Array.isArray(json.trades)   ? json.trades
+                  : Array.isArray(json.transfers)? json.transfers
+                  : [];
+          if (arr.length) {
+            const flat = arr.map(r => {
+              const meta = (r.additionalDataFields||[]).reduce((a,f) => {
+                a[f.key.replace(/ /g,'').toLowerCase()] = f.value;
+                return a;
+              }, {});
+              if (action === 'transfers') {
+                return {
+                  timestamp:       r.timestamp,
+                  venueAccount:    r.venueAccount,
+                  venueAccountId:  r.venueAccountId,
+                  venue:           r.venue,
+                  asset:           r.asset,
+                  size:            r.size,
+                  fee:             r.fee,
+                  type:            r.type,
+                  counterpartyType:r.counterpartyType,
+                  counterpartyId:  r.counterpartyId || '',
+                  address:         r.address || '',
+                  network:         r.network || '',
+                  account:         r.account || '',
+                  transactionId:   r.transactionId || '',
+                  strategy:        r.strategy || '',
+                  user:            r.user || '',
+                  enrichmentSource:meta['enrichmentsource']||'',
+                  bundle:           meta['bundle']||'',
+                  entity:           meta['entity']||'',
+                  book:             meta['book']||'',
+                  portfolio:        meta['portfolio']||''
+                };
+              } else {
+                return {
+                  timestamp:       r.timestamp,
+                  venueAccount:    r.venueAccount,
+                  venueAccountId:  r.venueAccountId,
+                  venue:           r.venue,
+                  symbol:          r.symbol,
+                  quantity:        r.quantity,
+                  price:           r.price,
+                  side:            r.side,
+                  counterpartyType:r.counterpartyType,
+                  instrumentType:  r.instrumentType,
+                  enrichmentSource:meta['enrichmentsource']||'',
+                  bundle:           meta['bundle']||'',
+                  entity:           meta['entity']||'',
+                  book:             meta['book']||'',
+                  portfolio:        meta['portfolio']||''
+                };
+              }
+            });
+            if (action === 'transfers') {
+              renderTable(flat, responseContainer,
+                columnsTransfers, labelsTransfers, 'Server Response (Transfers)');
+            } else {
+              renderTable(flat, responseContainer,
+                columnsTrades, labelsTrades, 'Server Response (Trades)');
+            }
+          } else {
+            responseContainer.innerHTML = `<h3>Raw JSON</h3>
+              <pre>${JSON.stringify(json,null,2)}</pre>`;
+          }
+        })
+        .catch(err => {
+          responseContainer.textContent = `Error: ${err.message}`;
+        });
+      });
+    });
+  </script>
 </body>
 </html>
