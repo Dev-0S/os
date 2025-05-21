@@ -50,7 +50,7 @@
       const apiKey  = document.getElementById('apiKey').value.trim();
 
       // build URL based on choice
-      const baseUrl = 'https://uk10.haruko.io:2044/cefi/api/trades'; // ← change to your real base URL
+      const baseUrl = 'https://uk10.haruko.io:2044/cefi/api'; // ← change to your real base URL
       const url = `${baseUrl}/${action}?venueAccountId=${venue}&symbol=${symbol}&latest=10`;
 
       respEl.textContent = 'Loading…';
