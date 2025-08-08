@@ -2,13 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ETH Staking Transfer Planner</title>
 <style>
   :root { --bg:#0b0c10; --card:#121319; --muted:#7f8c99; --fg:#e8ecf1; --accent:#5ad6a3; --border:#232632; }
+
+  /* Base */
   body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background: var(--bg); color: var(--fg); }
   .container { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
   h1 { font-size: 24px; margin: 0 0 16px; }
+  h3 { margin: 0 0 12px; }
   p.desc { color: var(--muted); margin-top: 0; }
   .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
@@ -17,28 +20,64 @@
   .span-4 { grid-column: span 4; }
   .span-3 { grid-column: span 3; }
   .span-2 { grid-column: span 2; }
+
   label { display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1016; color:var(--fg); }
-  .row { display:flex; gap:12px; align-items: center; flex-wrap: wrap; }
+  input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:#0f1016; color:var(--fg); }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   .btn { appearance: none; background: var(--accent); color:#042318; border:none; border-radius: 12px; padding: 12px 16px; font-weight: 700; cursor: pointer; }
   .btn:disabled { opacity:.6; cursor:not-allowed; }
-  table { width:100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
-  th { color: var(--muted); font-weight:600; }
+  .pill { display:inline-block; background:#0f1016; border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color:var(--muted); }
   .muted { color: var(--muted); }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
-  .pill { display:inline-block; background:#0f1016; border:1px solid var(--border); padding:4px 8px; border-radius:999px; font-size:12px; color:var(--muted); }
-  .ok { color: var(--accent); }
-  details { border:1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
-  summary { cursor:pointer; color: var(--muted); }
+
+  /* Desktop tables */
+  .table { width:100%; border-collapse: collapse; font-size: 13px; }
+  .table th, .table td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .table th { color: var(--muted); font-weight:600; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; -webkit-font-feature-settings: "tnum" 1, "lnum" 1; font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap; }
+  .num { text-align: right; }
+
+  /* Mobile “cards” — no horizontal scroll */
+  .list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .item h4 { margin: 0 0 6px; font-size: 14px; }
+  .kv { display:grid; grid-template-columns: auto 1fr; gap: 6px 10px; }
+  .kv div { padding: 4px 0; }
+  .k { color: var(--muted); }
+  .v { text-align: right; }
+  .v .mono { white-space: nowrap; }
+
+  /* Section header spacing inside cards */
+  .subhead { margin: 10px 0 6px; color: var(--muted); font-size: 12px; }
+
   footer { margin: 24px 0; color: var(--muted); font-size: 12px; }
-  @media (max-width: 900px) { .span-6 { grid-column: span 12; } .span-4 { grid-column: span 12; } .span-3 { grid-column: span 6; } .span-2 { grid-column: span 6; } }
+
+  /* Responsive: stack inputs on mobile */
+  @media (max-width: 900px) {
+    .span-6, .span-4, .span-3, .span-2 { grid-column: span 12; }
+  }
+
+  /* Kill tables on small screens; use cards instead */
+  @media (max-width: 820px) {
+    .table-wrap { display:none; } /* hide tables entirely */
+  }
+  /* On bigger screens show tables and hide mobile cards */
+  @media (min-width: 821px) {
+    .cards { display:none; }
+  }
+
+  /* Slightly smaller type in very tight spaces (iPhone landscape is ~736–812px CSS px) */
+  @media (max-width: 820px) {
+    body { font-size: 15px; }
+    h1 { font-size: 20px; }
+    .item { padding: 12px; }
+    .kv { gap: 4px 8px; }
+  }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>ETH Staking Transfer Planner</h1>
-  <p class="desc">Enter 4 source wallet liquid balances, 3 staking wallet <b>liquid</b> balances, and 3 staking wallet <b>staked totals</b>. The planner maximizes validators, minimizes transactions, and prefers topping up the lowest-staked wallet. Each transfer carries a buffer for fees and reports min/max leftover buffer ranges.</p>
+  <p class="desc">Enter 4 source wallet <b>liquid</b> balances, 3 staking wallet <b>liquid</b> balances, and 3 staking wallet <b>staked totals</b>. The planner maximizes validators, minimizes transactions, and prefers topping up the lowest-staked wallet. Each transfer carries a buffer and we show min/max leftover buffers after fees.</p>
 
   <div class="grid">
     <div class="card span-6">
@@ -61,7 +100,7 @@
     </div>
 
     <div class="card span-6">
-      <h3>Staking Wallets (3) — Staked Totals (for balancing preference)</h3>
+      <h3>Staking Wallets (3) — Staked Totals (balancing)</h3>
       <div class="grid">
         <div class="span-4"><label>Staking 1 Staked</label><input id="stkS1" type="number" step="0.00000001" value="10000"></div>
         <div class="span-4"><label>Staking 2 Staked</label><input id="stkS2" type="number" step="0.00000001" value="2000"></div>
@@ -78,7 +117,7 @@
       </div>
       <div class="row" style="margin-top:12px;">
         <button id="run" class="btn">Plan Transfers</button>
-        <span class="pill">Priority: <b>Validators</b> → <b>Transactions</b> → <b>Balance Pref</b></span>
+        <span class="pill">Priority: <b>Validators</b> → <b>Transactions</b> → <b>Balance</b></span>
       </div>
     </div>
 
@@ -92,10 +131,19 @@
 (function() {
   "use strict";
 
-  // ---------- Utils ----------
-  const DEC = 8;
+  // ------- Config / formatting -------
+  const DEC_DESKTOP = 8;
+  const DEC_MOBILE  = 6; // fewer decimals on phones to keep lines single-row
   const eps = 1e-9;
-  const fmt = (x) => Number(x).toFixed(DEC);
+  const isMobileLike = () => window.matchMedia("(max-width: 820px)").matches;
+
+  const fmt = (x, dec) => {
+    // fixed decimals then trim trailing zeros (keeps at least 2 decimals)
+    let s = Number(x).toFixed(dec);
+    s = s.replace(/(\.\d*?[1-9])0+$/,'$1').replace(/\.0+$/,'');
+    if (!s.includes(".")) s += ".00";
+    return s;
+  };
   const sum = (arr) => arr.reduce((a,b)=>a+b,0);
 
   const floorDiv32 = (x) => Math.floor(x / 32.0);
@@ -115,7 +163,7 @@
     return res;
   }
 
-  // ---------- Core algorithm ----------
+  // ------- Core algorithm (same logic as before) -------
   function chooseDestinations(payloadNeeded, stakingLiquid, stakingStaked) {
     const rema = stakingLiquid.map(remainder32);
     const topups = rema.map(r => (32.0 - r) % 32.0);
@@ -130,18 +178,16 @@
           candidates.push({subset, base, weight});
         }
       }
-      if (candidates.length) break; // minimal destinations found
+      if (candidates.length) break;
     }
 
     if (!candidates.length) {
-      // Fallback: send everything to lowest-staked wallet
       const j = stakingStaked.indexOf(Math.min(...stakingStaked));
       const payloads = [0,0,0];
       payloads[j] = payloadNeeded;
       return { payloads, chosen: [j] };
     }
 
-    // Pick smallest size; then smallest weight (favor low staked)
     candidates.sort((a,b)=>{
       if (a.subset.length !== b.subset.length) return a.subset.length - b.subset.length;
       return a.weight - b.weight;
@@ -157,18 +203,14 @@
   }
 
   function assignSources(sources, staking, destPayloads, bufPerTx) {
-    // sources/staking are objects with {name, start, end, sent, recvPayload, recvBuffers}
     const transfers = [];
     const dests = destPayloads
       .map((p,i)=>({i, payload:p}))
       .filter(d=>d.payload > eps)
       .sort((a,b)=>b.payload - a.payload);
 
-    // order sources by descending end balance
     const srcOrder = sources.map((_,i)=>i);
-
     const resort = () => srcOrder.sort((a,b)=>sources[b].end - sources[a].end);
-
     resort();
 
     for (const d of dests) {
@@ -215,7 +257,6 @@
     const totalLiquid = sum(stkLiquid);
     const theoreticalK = Math.floor((totalSources + totalLiquid) / 32.0);
 
-    // Try from theoretical k downwards until feasible with buffers
     for (let k = theoreticalK; k >= 0; k--) {
       const payloadNeeded = Math.max(0, 32.0 * k - totalLiquid);
 
@@ -225,21 +266,17 @@
         destPayloads = choice.payloads;
       }
 
-      // Simulate to check feasibility with buffers
+      // Simulate feasibility
       const simSources = sources.map(w=>({ ...w }));
       const simStaking = staking.map(w=>({ ...w }));
-      let feasible = true, simTransfers = [];
+      let feasible = true;
       try {
-        simTransfers = assignSources(simSources, simStaking, destPayloads, bufPerTx);
-      } catch (e) {
-        feasible = false;
-      }
+        assignSources(simSources, simStaking, destPayloads, bufPerTx);
+      } catch (e) { feasible = false; }
 
       if (feasible) {
-        // Commit
         const transfers = assignSources(sources, staking, destPayloads, bufPerTx);
 
-        // Buffer leftovers (after fees) per staking wallet
         const bufferRanges = staking.map(w => {
           const n = w.recvBuffers;
           const minLeft = Math.max(0, n * (bufPerTx - feeMax));
@@ -248,11 +285,7 @@
         });
 
         return {
-          k,
-          sources,
-          staking,
-          transfers,
-          destPayloads,
+          k, sources, staking, transfers, destPayloads,
           totals: {
             totalPayloadAdded: sum(transfers.map(t=>t.payload)),
             totalBuffersSent: transfers.length * bufPerTx
@@ -262,11 +295,10 @@
         };
       }
     }
-
     throw new Error("No feasible plan found.");
   }
 
-  // ---------- UI glue ----------
+  // ------- UI -------
   function readInputs() {
     const val = id => parseFloat(document.getElementById(id).value || "0");
     return {
@@ -281,144 +313,39 @@
 
   function render(result) {
     const out = document.getElementById("output");
+    const mobile = isMobileLike();
+    const DEC = mobile ? DEC_MOBILE : DEC_DESKTOP;
+
     const { k, transfers, sources, staking, totals, bufferRanges, params } = result;
 
-    const transfersHtml = transfers.length
-      ? `
-        <table>
+    // --- Desktop tables ---
+    const transfersTable = `
+      <div class="table-wrap">
+        <table class="table">
           <thead><tr><th>#</th><th>From</th><th>To</th><th>Payload (ETH)</th><th>Buffer (ETH)</th><th>Total Sent (ETH)</th></tr></thead>
           <tbody>
             ${transfers.map((t,i)=>`
               <tr>
-                <td>${i+1}</td>
+                <td class="mono num">${i+1}</td>
                 <td class="mono">${t.src}</td>
                 <td class="mono">${t.dst}</td>
-                <td class="mono">${fmt(t.payload)}</td>
-                <td class="mono">${fmt(params.bufPerTx)}</td>
-                <td class="mono">${fmt(t.total)}</td>
+                <td class="mono num">${fmt(t.payload, DEC)}</td>
+                <td class="mono num">${fmt(params.bufPerTx, DEC)}</td>
+                <td class="mono num">${fmt(t.total, DEC)}</td>
               </tr>`).join("")}
           </tbody>
-        </table>`
-      : `<p class="muted">No transfers required. Current liquidity already supports the maximum validator count.</p>`;
+        </table>
+      </div>`;
 
-    const srcRows = sources.map(w=>`
-      <tr>
-        <td class="mono">${w.name}</td>
-        <td class="mono">${fmt(w.start)}</td>
-        <td class="mono">${fmt(w.end)}</td>
-        <td class="mono">${fmt(w.sent)}</td>
-      </tr>`).join("");
-
-    const stkRows = staking.map(w=>{
-      const before = w.start;
-      const after = w.end; // pre-fee
-      const vBefore = floorDiv32(before);
-      const vAfter = floorDiv32(w.start + w.recvPayload); // stakeable liquid
-      const rem = remainder32(w.start + w.recvPayload);
-      return `
-      <tr>
-        <td class="mono">${w.name}</td>
-        <td class="mono">${fmt(before)}</td>
-        <td class="mono">${fmt(after)}</td>
-        <td class="mono">${vBefore} → ${vAfter}</td>
-        <td class="mono">${fmt(rem)}</td>
-        <td class="mono">${w.recvBuffers}</td>
-      </tr>`;
-    }).join("");
-
-    const bufRows = bufferRanges.map(b=>`
-      <tr>
-        <td class="mono">${b.name}</td>
-        <td class="mono">${b.n}</td>
-        <td class="mono">${fmt(b.minLeft)}</td>
-        <td class="mono">${fmt(b.maxLeft)}</td>
-      </tr>`).join("");
-
-    const totalMin = bufferRanges.reduce((a,b)=>a+b.minLeft,0);
-    const totalMax = bufferRanges.reduce((a,b)=>a+b.maxLeft,0);
-
-    out.innerHTML = `
-      <div class="card">
-        <h3>Transfer Plan</h3>
-        ${transfersHtml}
-      </div>
-
-      <div class="grid" style="margin-top:12px;">
-        <div class="card span-6">
-          <h3>Source Wallets — Balances (Before → After)</h3>
-          <table>
-            <thead><tr><th>Wallet</th><th>Before</th><th>After</th><th>Sent (Total)</th></tr></thead>
-            <tbody>${srcRows}</tbody>
-          </table>
-        </div>
-
-        <div class="card span-6">
-          <h3>Staking Wallets — Liquid (Before → After, pre-fee)</h3>
-          <table>
-            <thead><tr><th>Wallet</th><th>Before</th><th>After (pre-fee)</th><th>Validators</th><th>Remainder</th><th>Incoming Tx</th></tr></thead>
-            <tbody>${stkRows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="grid" style="margin-top:12px;">
-        <div class="card span-6">
-          <h3>Buffer Remainders After Fees</h3>
-          <p class="muted">Assuming per-transfer fee ∈ [${fmt(params.feeMin)}, ${fmt(params.feeMax)}] ETH</p>
-          <table>
-            <thead><tr><th>Wallet</th><th># Incoming Tx</th><th>Min Remaining</th><th>Max Remaining</th></tr></thead>
-            <tbody>${bufRows}</tbody>
-            <tfoot>
+    const srcTable = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Wallet</th><th>Before</th><th>After</th><th>Sent (Total)</th></tr></thead>
+          <tbody>
+            ${sources.map(w=>`
               <tr>
-                <th>Total</th><th></th>
-                <th class="mono">${fmt(totalMin)}</th>
-                <th class="mono">${fmt(totalMax)}</th>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        <div class="card span-6">
-          <h3>Summary</h3>
-          <table>
-            <tbody>
-              <tr><td>Max validators achievable</td><td class="mono">${k}</td></tr>
-              <tr><td>Total payload added to staking (stakeable)</td><td class="mono">${fmt(totals.totalPayloadAdded)} ETH</td></tr>
-              <tr><td>Total buffers sent (non-stakeable)</td><td class="mono">${fmt(totals.totalBuffersSent)} ETH</td></tr>
-              <tr><td>Total transfers</td><td class="mono">${transfers.length}</td></tr>
-              <tr><td>Priority respected</td><td class="mono">Validators → Transactions → Balance preference</td></tr>
-            </tbody>
-          </table>
-          <details style="margin-top:10px;">
-            <summary>Notes</summary>
-            <ul>
-              <li>Each transfer sends <b>payload + buffer</b>. Only payload is stakeable.</li>
-              <li>Validator math uses <b>liquid</b> only. Buffers are for fees and may leave small remainders.</li>
-              <li>Minimize transactions: the planner tries to use one source per destination; splits only if unavoidable.</li>
-              <li>Balance preference: among equally optimal plans, the lowest-staked wallet is favored.</li>
-            </ul>
-          </details>
-        </div>
-      </div>
-    `;
-  }
-
-  // Wire up
-  document.getElementById("run").addEventListener("click", () => {
-    try {
-      const inp = readInputs();
-      if (inp.feeMax < inp.feeMin) throw new Error("Fee Max must be ≥ Fee Min.");
-      const res = plan(inp);
-      render(res);
-    } catch (e) {
-      const out = document.getElementById("output");
-      out.innerHTML = `<div class="card"><h3>Oops</h3><p>${e.message}</p></div>`;
-    }
-  });
-
-  // Auto-run once with defaults
-  document.getElementById("run").click();
-})();
-</script>
-</body>
-</html>
+                <td class="mono">${w.name}</td>
+                <td class="mono num">${fmt(w.start, DEC)}</td>
+                <td class="mono num">${fmt(w.end, DEC)}</td>
+                <td class="mono num">${fmt(w.sent, DEC)}</td>
+              </tr>`).
