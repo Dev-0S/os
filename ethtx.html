@@ -3,17 +3,22 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ETH Staking Transfer Planner</title>
+<title>ETH Staking Transfer Optimisation</title>
 <style>
-  :root { --bg:#0b0c10; --card:#121319; --muted:#7f8c99; --fg:#e8ecf1; --accent:#5ad6a3; --border:#232632; }
+  :root { --bg:#0b0c10; --card:#121319; --muted:#7f8c99; --fg:#e8ecf1; --accent:#5ad6a3; --accent2:#9af0ca; --border:#232632; }
+
+  /* Fix overflow: make sizing predictable everywhere */
+  *, *::before, *::after { box-sizing: border-box; }
 
   /* Base */
   body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background: var(--bg); color: var(--fg); }
-  .container { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
+  .container { max-width: 1280px; margin: 32px auto; padding: 0 16px; } /* widened */
   h1 { font-size: 24px; margin: 0 0 16px; }
   h3 { margin: 0 0 12px; }
   p.desc { color: var(--muted); margin-top: 0; }
   .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); }
+  /* Allow grid children to shrink so inputs don't push outside */
+  .grid > * { min-width: 0; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
   .span-12 { grid-column: span 12; }
   .span-6 { grid-column: span 6; }
@@ -22,17 +27,38 @@
   .span-2 { grid-column: span 2; }
 
   label { display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:#0f1016; color:var(--fg); }
+  input {
+    width:100%; max-width:100%;
+    padding:12px 14px;
+    border-radius:10px; border:1px solid var(--border);
+    background:#0f1016; color:var(--fg);
+  }
   .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-  .btn { appearance: none; background: var(--accent); color:#042318; border:none; border-radius: 12px; padding: 12px 16px; font-weight: 700; cursor: pointer; }
+
+  /* Button + hover animation */
+  .btn {
+    appearance: none; background: var(--accent); color:#042318; border:none;
+    border-radius: 12px; padding: 12px 16px; font-weight: 700; cursor: pointer;
+    transition: transform .15s ease, box-shadow .25s ease, filter .25s ease;
+    box-shadow: 0 0 0 rgba(90,214,163,0);
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(90,214,163,.25), 0 0 0 1px rgba(90,214,163,.30) inset;
+    filter: brightness(1.03);
+  }
+  .btn:active { transform: translateY(0); box-shadow: 0 6px 16px rgba(90,214,163,.18); }
   .btn:disabled { opacity:.6; cursor:not-allowed; }
-  .pill { display:inline-block; background:#0f1016; border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color:var(--muted); }
+
+  .pill { display:inline-block; background:#0f1016; border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color: var(--muted); }
   .muted { color: var(--muted); }
 
   /* Desktop tables */
-  .table { width:100%; border-collapse: collapse; font-size: 13px; }
+  .table-wrap { width: 100%; }
+  .table { width:100%; border-collapse: collapse; font-size: 13px; table-layout:auto; }
   .table th, .table td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
   .table th { color: var(--muted); font-weight:600; }
+  .nowrap { white-space: nowrap; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; -webkit-font-feature-settings: "tnum" 1, "lnum" 1; font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap; }
   .num { text-align: right; }
 
@@ -46,9 +72,7 @@
   .v { text-align: right; }
   .v .mono { white-space: nowrap; }
 
-  /* Section header spacing inside cards */
   .subhead { margin: 10px 0 6px; color: var(--muted); font-size: 12px; }
-
   footer { margin: 24px 0; color: var(--muted); font-size: 12px; }
 
   /* Responsive: stack inputs on mobile */
@@ -57,13 +81,8 @@
   }
 
   /* Kill tables on small screens; use cards instead */
-  @media (max-width: 820px) {
-    .table-wrap { display:none; } /* hide tables entirely */
-  }
-  /* On bigger screens show tables and hide mobile cards */
-  @media (min-width: 821px) {
-    .cards { display:none; }
-  }
+  @media (max-width: 820px) { .table-wrap { display:none; } }
+  @media (min-width: 821px) { .cards { display:none; } }
 
   /* Slightly smaller type in very tight spaces (iPhone landscape is ~736–812px CSS px) */
   @media (max-width: 820px) {
@@ -72,12 +91,33 @@
     .item { padding: 12px; }
     .kv { gap: 4px 8px; }
   }
+
+  /* Loading overlay */
+  .loader.hidden { display: none; }
+  .loader {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: rgba(11,12,16,0.55); backdrop-filter: blur(2px);
+    z-index: 9999;
+  }
+  .spinner {
+    width: 78px; height: 78px; position: relative; margin-bottom: 12px;
+  }
+  .spinner::before, .spinner::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    border: 3px solid transparent; border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+  .spinner::after {
+    inset: 8px; border-top-color: var(--accent2); animation-duration: 1.6s;
+  }
+  .loader p { color: var(--muted); font-size: 12px; letter-spacing: .02em; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>ETH Staking Transfer Planner</h1>
-  <p class="desc">Enter 4 source wallet <b>liquid</b> balances, 3 staking wallet <b>liquid</b> balances, and 3 staking wallet <b>staked totals</b>. The planner maximizes validators, minimizes transactions, and prefers topping up the lowest-staked wallet. Each transfer carries a buffer and we show min/max leftover buffers after fees.</p>
+  <h1>ETH Staking Transfer Optimisation</h1>
+  <p class="desc">Enter 4 source wallet <b>liquid</b> balances, 3 staking wallet <b>liquid</b> balances, and 3 staking wallet <b>staked total balances</b>. <br><br> This software maximizes validators, minimizes transactions, and prefers topping up the wallet with the smallest <b>staked balance</b>. Each transfer carries a buffer (for tx fees), we show min/max leftover buffers after fees.</p>
 
   <div class="grid">
     <div class="card span-6">
@@ -95,16 +135,16 @@
       <div class="grid">
         <div class="span-4"><label>Staking 1 Liquid</label><input id="stkL1" type="number" step="0.00000001" value="20"></div>
         <div class="span-4"><label>Staking 2 Liquid</label><input id="stkL2" type="number" step="0.00000001" value="31"></div>
-        <div class="span-4"><label>Staking 3 Liquid</label><input id="stkL3" type="number" step="0.00000001" value="40"></div>
+        <div class="span-4"><label>Staking 2 Liquid</label><input id="stkL3" type="number" step="0.00000001" value="40"></div>
       </div>
     </div>
 
     <div class="card span-6">
       <h3>Staking Wallets (3) — Staked Totals (balancing)</h3>
       <div class="grid">
-        <div class="span-4"><label>Staking 1 Staked</label><input id="stkS1" type="number" step="0.00000001" value="10000"></div>
-        <div class="span-4"><label>Staking 2 Staked</label><input id="stkS2" type="number" step="0.00000001" value="2000"></div>
-        <div class="span-4"><label>Staking 3 Staked</label><input id="stkS3" type="number" step="0.00000001" value="30000"></div>
+        <div class="span-4"><label>Staking 1 Total</label><input id="stkS1" type="number" step="0.00000001" value="10000"></div>
+        <div class="span-4"><label>Staking 2 Total</label><input id="stkS2" type="number" step="0.00000001" value="2000"></div>
+        <div class="span-4"><label>Staking 3 Total</label><input id="stkS3" type="number" step="0.00000001" value="30000"></div>
       </div>
     </div>
 
@@ -116,7 +156,7 @@
         <div class="span-4"><label>Fee Max (ETH)</label><input id="feeMax" type="number" step="0.00000001" value="0.01"></div>
       </div>
       <div class="row" style="margin-top:12px;">
-        <button id="run" class="btn">Plan Transfers</button>
+        <button id="run" class="btn">Optimise Transfers</button>
         <span class="pill">Priority: <b>Validators</b> → <b>Transactions</b> → <b>Balance</b></span>
       </div>
     </div>
@@ -127,18 +167,24 @@
   <footer>No data leaves your browser. All calculations are client-side.</footer>
 </div>
 
+<!-- Loading overlay -->
+<div id="loader" class="loader hidden" aria-hidden="true">
+  <div class="spinner"></div>
+  <p>Calculating optimal transfers…</p>
+</div>
+
 <script>
 (function() {
   "use strict";
 
   // ------- Config / formatting -------
   const DEC_DESKTOP = 8;
-  const DEC_MOBILE  = 6; // fewer decimals on phones to keep lines single-row
+  const DEC_MOBILE  = 6;
   const eps = 1e-9;
-  const isMobileLike = () => window.matchMedia("(max-width: 820px)").matches;
+
+  const STAKING_NAMES = ["Staking 1", "Staking 2", "Staking 3"];
 
   const fmt = (x, dec) => {
-    // fixed decimals then trim trailing zeros (keeps at least 2 decimals)
     let s = Number(x).toFixed(dec);
     s = s.replace(/(\.\d*?[1-9])0+$/,'$1').replace(/\.0+$/,'');
     if (!s.includes(".")) s += ".00";
@@ -153,17 +199,13 @@
     const res = [];
     function rec(start, comb) {
       if (comb.length === k) { res.push(comb.slice()); return; }
-      for (let i=start; i<arr.length; i++) {
-        comb.push(arr[i]);
-        rec(i+1, comb);
-        comb.pop();
-      }
+      for (let i=start; i<arr.length; i++) { comb.push(arr[i]); rec(i+1, comb); comb.pop(); }
     }
     rec(0, []);
     return res;
   }
 
-  // ------- Core algorithm (same logic as before) -------
+  // ------- Core algorithm -------
   function chooseDestinations(payloadNeeded, stakingLiquid, stakingStaked) {
     const rema = stakingLiquid.map(remainder32);
     const topups = rema.map(r => (32.0 - r) % 32.0);
@@ -174,7 +216,7 @@
       for (const subset of combinations(idxs, size)) {
         const base = subset.reduce((a,i)=>a+topups[i],0);
         if (payloadNeeded + eps >= base && Math.abs((payloadNeeded - base) % 32.0) < 1e-9) {
-          const weight = subset.reduce((a,i)=>a+stakingStaked[i],0); // lower is better
+          const weight = subset.reduce((a,i)=>a+stakingStaked[i],0);
           candidates.push({subset, base, weight});
         }
       }
@@ -183,8 +225,7 @@
 
     if (!candidates.length) {
       const j = stakingStaked.indexOf(Math.min(...stakingStaked));
-      const payloads = [0,0,0];
-      payloads[j] = payloadNeeded;
+      const payloads = [0,0,0]; payloads[j] = payloadNeeded;
       return { payloads, chosen: [j] };
     }
 
@@ -216,7 +257,6 @@
     for (const d of dests) {
       let need = d.payload;
 
-      // Try one-shot source
       let one = srcOrder.find(si => sources[si].end >= (need + bufPerTx - eps));
       if (one !== undefined) {
         const total = need + bufPerTx;
@@ -227,7 +267,6 @@
         continue;
       }
 
-      // Split across sources
       for (const si of srcOrder.slice()) {
         if (need <= eps) break;
         const capPayload = Math.max(0, sources[si].end - bufPerTx);
@@ -243,7 +282,6 @@
 
       if (need > eps) throw new Error("Insufficient source liquidity for required payloads (after per-tx buffers).");
     }
-
     return transfers;
   }
 
@@ -251,7 +289,7 @@
     const { src, stkLiquid, stkStaked, bufPerTx, feeMin, feeMax } = input;
 
     const sources = src.map((v,i)=>({ name:`Wallet ${i+1}`, start:v, end:v, sent:0 }));
-    const staking = stkLiquid.map((v,i)=>({ name:`Staking ${i+1}`, start:v, end:v, recvPayload:0, recvBuffers:0 }));
+    const staking = stkLiquid.map((v,i)=>({ name: ["Staking 1","Staking 2","Staking 3"][i], start:v, end:v, recvPayload:0, recvBuffers:0 }));
 
     const totalSources = sum(src);
     const totalLiquid = sum(stkLiquid);
@@ -266,13 +304,11 @@
         destPayloads = choice.payloads;
       }
 
-      // Simulate feasibility
       const simSources = sources.map(w=>({ ...w }));
       const simStaking = staking.map(w=>({ ...w }));
       let feasible = true;
-      try {
-        assignSources(simSources, simStaking, destPayloads, bufPerTx);
-      } catch (e) { feasible = false; }
+      try { assignSources(simSources, simStaking, destPayloads, bufPerTx); }
+      catch (e) { feasible = false; }
 
       if (feasible) {
         const transfers = assignSources(sources, staking, destPayloads, bufPerTx);
@@ -313,16 +349,15 @@
 
   function render(result) {
     const out = document.getElementById("output");
-    const mobile = isMobileLike();
+    const mobile = window.matchMedia("(max-width: 820px)").matches;
     const DEC = mobile ? DEC_MOBILE : DEC_DESKTOP;
 
     const { k, transfers, sources, staking, totals, bufferRanges, params } = result;
 
-    // --- Desktop tables ---
     const transfersTable = `
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>#</th><th>From</th><th>To</th><th>Payload (ETH)</th><th>Buffer (ETH)</th><th>Total Sent (ETH)</th></tr></thead>
+          <thead><tr><th>#</th><th>From</th><th>To</th><th>Quantity (ETH)</th><th>Buffer (ETH)</th><th>Total Sent (ETH)</th></tr></thead>
           <tbody>
             ${transfers.map((t,i)=>`
               <tr>
@@ -356,7 +391,16 @@
     const stkTable = `
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Wallet</th><th>Before</th><th>After (pre-fee)</th><th>Validators</th><th>Remainder</th><th>Incoming Tx</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Wallet</th>
+              <th>Before</th>
+              <th>After (pre-fee)</th>
+              <th>Validators</th>
+              <th>Remainder</th>
+              <th class="nowrap">Incoming&nbsp;Tx</th>
+            </tr>
+          </thead>
           <tbody>
             ${staking.map(w=>{
               const before = w.start;
@@ -381,7 +425,7 @@
     const bufTable = `
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Wallet</th><th># Incoming Tx</th><th>Min Remaining</th><th>Max Remaining</th></tr></thead>
+          <thead><tr><th>Wallet</th><th class="nowrap">Incoming&nbsp;Tx</th><th>Min Remaining</th><th>Max Remaining</th></tr></thead>
           <tbody>
             ${bufferRanges.map(b=>`
               <tr>
@@ -406,7 +450,7 @@
         <table class="table">
           <tbody>
             <tr><td>Max validators achievable</td><td class="mono num">${k}</td></tr>
-            <tr><td>Total payload added to staking (stakeable)</td><td class="mono num">${fmt(totals.totalPayloadAdded, DEC)} ETH</td></tr>
+            <tr><td>Total quantity sent to staking wallets (stakeable)</td><td class="mono num">${fmt(totals.totalPayloadAdded, DEC)} ETH</td></tr>
             <tr><td>Total buffers sent (non-stakeable)</td><td class="mono num">${fmt(totals.totalBuffersSent, DEC)} ETH</td></tr>
             <tr><td>Total transfers</td><td class="mono num">${transfers.length}</td></tr>
             <tr><td>Priority respected</td><td class="mono">Validators → Transactions → Balance preference</td></tr>
@@ -414,7 +458,6 @@
         </table>
       </div>`;
 
-    // --- Mobile “cards” (no horizontal scroll) ---
     const transfersCards = `
       <div class="cards">
         <div class="list">
@@ -425,7 +468,7 @@
                 <div class="k">From</div><div class="v mono">${t.src}</div>
                 <div class="k">To</div><div class="v mono">${t.dst}</div>
                 <div class="k">Payload</div><div class="v mono">${fmt(t.payload, DEC)} ETH</div>
-                <div class="k">Buffer</div><div class="v mono">${fmt(params.bufPerTx, DEC)} ETH</div>
+                <div class="k">Buffer</div><div class="v mono">${fmt(result.params.bufPerTx, DEC)} ETH</div>
                 <div class="k">Total Sent</div><div class="v mono">${fmt(t.total, DEC)} ETH</div>
               </div>
             </div>`).join("")
@@ -508,10 +551,9 @@
         </div>
       </div>`;
 
-    // Output: tables for desktop + cards for mobile (CSS toggles visibility)
     out.innerHTML = `
       <div class="card">
-        <h3>Transfer Plan</h3>
+        <h3>Optimal Transfers</h3>
         <div class="table-wrap">${transfersTable}</div>
         ${transfersCards}
       </div>
@@ -529,7 +571,6 @@
           ${stkCards}
         </div>
       </div>
-
       <div class="grid" style="margin-top:12px;">
         <div class="card span-6">
           <h3>Buffer Remainders After Fees</h3>
@@ -547,22 +588,41 @@
     `;
   }
 
-  // Wire up
-  function runPlanner() {
-    try {
-      const inp = readInputs();
-      if (inp.feeMax < inp.feeMin) throw new Error("Fee Max must be ≥ Fee Min.");
-      const res = plan(inp);
-      render(res);
-    } catch (e) {
-      document.getElementById("output").innerHTML =
-        `<div class="card"><h3>Oops</h3><p>${e.message}</p></div>`;
-    }
+  // ------- Loader helpers -------
+  const loaderEl = document.getElementById("loader");
+  function showLoader() {
+    loaderEl.classList.remove("hidden");
+    loaderEl.setAttribute("aria-hidden", "false");
+  }
+  function hideLoader() {
+    loaderEl.classList.add("hidden");
+    loaderEl.setAttribute("aria-hidden", "true");
   }
 
-  document.getElementById("run").addEventListener("click", runPlanner);
-  window.addEventListener("resize", runPlanner); // re-render with mobile/desktop layout on rotation
-  runPlanner(); // initial
+  function runPlannerCore() {
+    const inp = readInputs();
+    if (inp.feeMax < inp.feeMin) throw new Error("Fee Max must be ≥ Fee Min.");
+    const res = plan(inp);
+    render(res);
+  }
+
+  function runPlannerWithLoader() {
+    showLoader();
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try { runPlannerCore(); }
+        catch (e) {
+          document.getElementById("output").innerHTML = `<div class="card"><h3>Oops</h3><p>${e.message}</p></div>`;
+        } finally {
+          setTimeout(hideLoader, 1000); // 1000ms spinner
+        }
+      }, 0);
+    });
+  }
+
+  document.getElementById("run").addEventListener("click", runPlannerWithLoader);
+  window.addEventListener("resize", runPlannerCore);
+  runPlannerCore();
 })();
 </script>
 </body>
