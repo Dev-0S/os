@@ -348,4 +348,222 @@
                 <td class="mono num">${fmt(w.start, DEC)}</td>
                 <td class="mono num">${fmt(w.end, DEC)}</td>
                 <td class="mono num">${fmt(w.sent, DEC)}</td>
-              </tr>`).
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+
+    const stkTable = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Wallet</th><th>Before</th><th>After (pre-fee)</th><th>Validators</th><th>Remainder</th><th>Incoming Tx</th></tr></thead>
+          <tbody>
+            ${staking.map(w=>{
+              const before = w.start;
+              const after = w.end;
+              const vBefore = floorDiv32(before);
+              const vAfter = floorDiv32(w.start + w.recvPayload);
+              const rem = remainder32(w.start + w.recvPayload);
+              return `
+              <tr>
+                <td class="mono">${w.name}</td>
+                <td class="mono num">${fmt(before, DEC)}</td>
+                <td class="mono num">${fmt(after, DEC)}</td>
+                <td class="mono num">${vBefore} → ${vAfter}</td>
+                <td class="mono num">${fmt(rem, DEC)}</td>
+                <td class="mono num">${w.recvBuffers}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>`;
+
+    const bufTable = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Wallet</th><th># Incoming Tx</th><th>Min Remaining</th><th>Max Remaining</th></tr></thead>
+          <tbody>
+            ${bufferRanges.map(b=>`
+              <tr>
+                <td class="mono">${b.name}</td>
+                <td class="mono num">${b.n}</td>
+                <td class="mono num">${fmt(b.minLeft, DEC)}</td>
+                <td class="mono num">${fmt(b.maxLeft, DEC)}</td>
+              </tr>`).join("")}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total</th><th></th>
+              <th class="mono num">${fmt(bufferRanges.reduce((a,b)=>a+b.minLeft,0), DEC)}</th>
+              <th class="mono num">${fmt(bufferRanges.reduce((a,b)=>a+b.maxLeft,0), DEC)}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+
+    const summaryTable = `
+      <div class="table-wrap">
+        <table class="table">
+          <tbody>
+            <tr><td>Max validators achievable</td><td class="mono num">${k}</td></tr>
+            <tr><td>Total payload added to staking (stakeable)</td><td class="mono num">${fmt(totals.totalPayloadAdded, DEC)} ETH</td></tr>
+            <tr><td>Total buffers sent (non-stakeable)</td><td class="mono num">${fmt(totals.totalBuffersSent, DEC)} ETH</td></tr>
+            <tr><td>Total transfers</td><td class="mono num">${transfers.length}</td></tr>
+            <tr><td>Priority respected</td><td class="mono">Validators → Transactions → Balance preference</td></tr>
+          </tbody>
+        </table>
+      </div>`;
+
+    // --- Mobile “cards” (no horizontal scroll) ---
+    const transfersCards = `
+      <div class="cards">
+        <div class="list">
+          ${transfers.length ? transfers.map((t,i)=>`
+            <div class="item">
+              <h4>Transfer ${i+1}</h4>
+              <div class="kv">
+                <div class="k">From</div><div class="v mono">${t.src}</div>
+                <div class="k">To</div><div class="v mono">${t.dst}</div>
+                <div class="k">Payload</div><div class="v mono">${fmt(t.payload, DEC)} ETH</div>
+                <div class="k">Buffer</div><div class="v mono">${fmt(params.bufPerTx, DEC)} ETH</div>
+                <div class="k">Total Sent</div><div class="v mono">${fmt(t.total, DEC)} ETH</div>
+              </div>
+            </div>`).join("")
+          : `<div class="item"><h4>No transfers required</h4><div class="subhead">Current liquidity already supports the maximum validator count.</div></div>`}
+        </div>
+      </div>`;
+
+    const srcCards = `
+      <div class="cards">
+        <div class="list">
+          ${sources.map(w=>`
+            <div class="item">
+              <h4>${w.name}</h4>
+              <div class="kv">
+                <div class="k">Before</div><div class="v mono">${fmt(w.start, DEC)}</div>
+                <div class="k">After</div><div class="v mono">${fmt(w.end, DEC)}</div>
+                <div class="k">Sent</div><div class="v mono">${fmt(w.sent, DEC)}</div>
+              </div>
+            </div>`).join("")}
+        </div>
+      </div>`;
+
+    const stkCards = `
+      <div class="cards">
+        <div class="list">
+          ${staking.map(w=>{
+            const vBefore = floorDiv32(w.start);
+            const vAfter = floorDiv32(w.start + w.recvPayload);
+            const rem = remainder32(w.start + w.recvPayload);
+            return `
+              <div class="item">
+                <h4>${w.name}</h4>
+                <div class="kv">
+                  <div class="k">Before</div><div class="v mono">${fmt(w.start, DEC)}</div>
+                  <div class="k">After (pre-fee)</div><div class="v mono">${fmt(w.end, DEC)}</div>
+                  <div class="k">Validators</div><div class="v mono">${vBefore} → ${vAfter}</div>
+                  <div class="k">Remainder</div><div class="v mono">${fmt(rem, DEC)}</div>
+                  <div class="k">Incoming Tx</div><div class="v mono">${w.recvBuffers}</div>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+
+    const bufCards = `
+      <div class="cards">
+        <div class="list">
+          ${bufferRanges.map(b=>`
+            <div class="item">
+              <h4>${b.name}</h4>
+              <div class="kv">
+                <div class="k">Incoming Tx</div><div class="v mono">${b.n}</div>
+                <div class="k">Min Remaining</div><div class="v mono">${fmt(b.minLeft, DEC)} ETH</div>
+                <div class="k">Max Remaining</div><div class="v mono">${fmt(b.maxLeft, DEC)} ETH</div>
+              </div>
+            </div>`).join("")}
+          <div class="item">
+            <h4>Total Buffers After Fees</h4>
+            <div class="kv">
+              <div class="k">Min Total</div><div class="v mono">${fmt(bufferRanges.reduce((a,b)=>a+b.minLeft,0), DEC)} ETH</div>
+              <div class="k">Max Total</div><div class="v mono">${fmt(bufferRanges.reduce((a,b)=>a+b.maxLeft,0), DEC)} ETH</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const summaryCards = `
+      <div class="cards">
+        <div class="list">
+          <div class="item">
+            <h4>Summary</h4>
+            <div class="kv">
+              <div class="k">Max Validators</div><div class="v mono">${k}</div>
+              <div class="k">Payload Added</div><div class="v mono">${fmt(totals.totalPayloadAdded, DEC)} ETH</div>
+              <div class="k">Buffers Sent</div><div class="v mono">${fmt(totals.totalBuffersSent, DEC)} ETH</div>
+              <div class="k">Transfers</div><div class="v mono">${transfers.length}</div>
+              <div class="k">Priority</div><div class="v mono">Validators → Tx → Balance</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    // Output: tables for desktop + cards for mobile (CSS toggles visibility)
+    out.innerHTML = `
+      <div class="card">
+        <h3>Transfer Plan</h3>
+        <div class="table-wrap">${transfersTable}</div>
+        ${transfersCards}
+      </div>
+
+      <div class="grid" style="margin-top:12px;">
+        <div class="card span-6">
+          <h3>Source Wallets — Balances (Before → After)</h3>
+          <div class="table-wrap">${srcTable}</div>
+          ${srcCards}
+        </div>
+
+        <div class="card span-6">
+          <h3>Staking Wallets — Liquid (Before → After, pre-fee)</h3>
+          <div class="table-wrap">${stkTable}</div>
+          ${stkCards}
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:12px;">
+        <div class="card span-6">
+          <h3>Buffer Remainders After Fees</h3>
+          <div class="muted">Using per-transfer fee range; set in Parameters.</div>
+          <div class="table-wrap">${bufTable}</div>
+          ${bufCards}
+        </div>
+
+        <div class="card span-6">
+          <h3>Summary</h3>
+          <div class="table-wrap">${summaryTable}</div>
+          ${summaryCards}
+        </div>
+      </div>
+    `;
+  }
+
+  // Wire up
+  function runPlanner() {
+    try {
+      const inp = readInputs();
+      if (inp.feeMax < inp.feeMin) throw new Error("Fee Max must be ≥ Fee Min.");
+      const res = plan(inp);
+      render(res);
+    } catch (e) {
+      document.getElementById("output").innerHTML =
+        `<div class="card"><h3>Oops</h3><p>${e.message}</p></div>`;
+    }
+  }
+
+  document.getElementById("run").addEventListener("click", runPlanner);
+  window.addEventListener("resize", runPlanner); // re-render with mobile/desktop layout on rotation
+  runPlanner(); // initial
+})();
+</script>
+</body>
+</html>
