@@ -6,14 +6,17 @@
 <title>ETH Queue Monitor — Dev-0S</title>
 <meta name="theme-color" content="#0b0c10" />
 <style>
-  :root { --bg:#0b0c10; --card:#121319; --muted:#8c98a6; --fg:#e8ecf1; --accent:#5ad6a3; --accent2:#9af0ca; --border:#232632; --radius:16px; --container:1280px; --shadow:0 10px 30px rgba(0,0,0,.35); }
+  :root { --bg:#0b0c10; --card:#121319; --muted:#8c98a6; --fg:#e8ecf1; --accent:#5ad6a3; --accent2:#9af0ca; --border:#232632; --radius:16px; --container:1280px; --shadow:0 10px 30px rgba(0,0,0,.35); --sidew:256px; }
   *,*::before,*::after{ box-sizing:border-box; }
   html,body{ height:100%; }
   body{ margin:0; background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   a{ color:inherit; text-decoration:none; }
   .container{ max-width:var(--container); margin:0 auto; padding:0 20px; }
 
-  /* Glassy sticky nav */
+  /* When sidebar is open, shift page content */
+  body.nav-open{ margin-left: var(--sidew); }
+
+  /* Glassy sticky top nav */
   .nav{ position:fixed; top:0; left:0; right:0; z-index:10; }
   .nav-inner{ height:64px; display:flex; align-items:center; backdrop-filter:saturate(140%) blur(8px); background:rgba(13,14,20,.55); border-bottom:1px solid rgba(255,255,255,.06); }
   .brand{ font-weight:800; letter-spacing:.2px; }
@@ -69,9 +72,90 @@
 
   @media (max-width: 980px){ .grid-3{ grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 720px){ .grid-2, .grid-3{ grid-template-columns: 1fr; } .hero::before{ background-attachment: scroll; } }
+
+  /* ---------- Sidebar (same style as staking page) ---------- */
+  .sidenav {
+    position: fixed; inset: 0 auto 0 0; width: var(--sidew);
+    background: #0f1016; border-right: 1px solid var(--border);
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    z-index: 1000; transform: translateX(-100%); transition: transform .25s ease;
+  }
+  .sidenav header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding: 6px 6px 12px; }
+  .sidenav .brand { font-weight:900; letter-spacing:.3px; color:var(--fg); }
+  .sidenav .close{ background:transparent; border:0; color:var(--muted); font-size:20px; cursor:pointer; border-radius:10px; padding:6px; }
+  .sidenav .close:hover{ color:var(--fg); background: rgba(255,255,255,.06); }
+  .sidenav nav{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+
+  .nav-item{
+    position:relative; display:flex; align-items:center; gap:12px;
+    padding:10px 12px; border-radius:12px; color:var(--muted);
+    border:1px solid rgba(255,255,255,.06);
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    transition: background .2s ease, box-shadow .25s ease, color .2s ease, border-color .2s ease;
+    font-weight:700; letter-spacing:.2px;
+  }
+  .nav-item::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:transparent; border-radius:12px 0 0 12px; transition:background .2s ease;
+  }
+  .nav-item:hover{
+    color:var(--fg);
+    background:linear-gradient(90deg, rgba(90,214,163,.12), rgba(90,214,163,0.02));
+    border-color:rgba(90,214,163,.25);
+    box-shadow: inset 0 0 0 1px rgba(90,214,163,.08), 0 10px 24px rgba(0,0,0,.25);
+  }
+  .nav-item:hover::before{ background:var(--accent); }
+  .nav-item.active{
+    color:var(--fg);
+    border-color:rgba(90,214,163,.35);
+    background:linear-gradient(90deg, rgba(90,214,163,.16), rgba(90,214,163,0.04));
+    box-shadow: inset 0 0 0 1px rgba(90,214,163,.12);
+  }
+  .nav-item.active::before{ background:var(--accent); }
+  .nav-icon{ width:18px; height:18px; flex:0 0 auto; display:inline-block; filter: drop-shadow(0 1px 0 rgba(0,0,0,.35)); }
+
+  /* Toggle button */
+  .sidenav-toggle{
+    position: fixed; left: 12px; top: 12px;
+    z-index: 900; /* below sidebar (1000) so it never sits on top */
+    background: var(--accent); color:#042318; border:0; border-radius:12px; padding:10px 12px; font-weight:800; cursor:pointer;
+    box-shadow: 0 10px 24px rgba(90,214,163,.25);
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  /* Hide toggle when sidebar open (prevents overlap) */
+  body.nav-open .sidenav-toggle{ opacity:0; pointer-events:none; transform: translateX(-8px) scale(0.96); }
+
+  /* Open state */
+  .sidenav.open{ transform: translateX(0); }
 </style>
 </head>
-<body>
+<body class="nav-open"><!-- start open to match the other page -->
+
+<!-- Sidebar -->
+<button class="sidenav-toggle" id="sidenavToggle" aria-label="Open menu">☰</button>
+<aside class="sidenav" id="sidenav" aria-label="Side navigation">
+  <header>
+    <div class="brand">Dev-0S</div>
+    <button class="close" id="sidenavClose" aria-label="Close">✕</button>
+  </header>
+  <nav>
+    <a href="YOUR-STAKING-OPTIMISER-URL.html" class="nav-item" id="link-optimiser" title="Staking Transfer Optimiser">
+      <!-- sliders icon -->
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 7h10M4 17h16M14 7v6M10 17v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Staking Transfer Optimiser</span>
+    </a>
+    <a href="https://dev-0s.github.io/os/ethqueue.html" target="_self" class="nav-item active" id="link-queue" title="ETH Queue Monitor">
+      <!-- list icon -->
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 6h16M4 12h12M4 18h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>ETH Queue Monitor</span>
+    </a>
+  </nav>
+</aside>
+
   <!-- NAV -->
   <nav class="nav">
     <div class="nav-inner">
@@ -138,10 +222,24 @@
 (function(){
   "use strict";
 
+  /* Sidebar toggle */
+  const sidenav = document.getElementById('sidenav');
+  const toggleBtn = document.getElementById('sidenavToggle');
+  const closeBtn  = document.getElementById('sidenavClose');
+  function openNav(){ document.body.classList.add('nav-open'); sidenav.classList.add('open'); }
+  function closeNav(){ sidenav.classList.remove('open'); document.body.classList.remove('nav-open'); }
+  function toggleNav(){ if (document.body.classList.contains('nav-open')) closeNav(); else openNav(); }
+  // start open (to match your other page)
+  openNav();
+  toggleBtn.addEventListener('click', toggleNav);
+  closeBtn.addEventListener('click', closeNav);
+  sidenav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeNav(); });
+
+  /* Existing queue code */
   const ENDPOINTS = [
-    "https://www.validatorqueue.com/",         // try direct first
-    "https://validatorqueue.com/",              // simple alt
-    // CORS-friendly reader fallback (mirrors the HTML as text)
+    "https://www.validatorqueue.com/",
+    "https://validatorqueue.com/",
     "https://r.jina.ai/http://www.validatorqueue.com/",
     "https://r.jina.ai/http://validatorqueue.com/"
   ];
@@ -173,23 +271,16 @@
   }
 
   function extractHistoricalData(htmlText){
-    // Find: historical_data = [ ... ];
     const m = htmlText.match(/historical_data\s*=\s*(\[[\s\S]*?\]);/);
     if (!m) throw new Error("Could not locate historical_data in the page");
     let jsonText = m[1];
-
-    // Clean possible trailing commas (defensive)
     jsonText = jsonText.replace(/,\s*([}\]])/g, "$1");
-
     try{
       const arr = JSON.parse(jsonText);
       if (!Array.isArray(arr) || !arr.length) throw new Error("historical_data not an array");
       return arr;
     }catch(e){
-      // Some mirrors may HTML-escape quotes; try to normalize
-      const repaired = jsonText
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&');
+      const repaired = jsonText.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
       const arr = JSON.parse(repaired);
       if (!Array.isArray(arr) || !arr.length) throw new Error("historical_data parse error");
       return arr;
@@ -197,9 +288,7 @@
   }
 
   function renderFromRow(row){
-    // Row fields: date, validators, entry_queue, entry_wait, exit_queue, exit_wait, churn, entry_churn, exit_churn
     const now = Date.now();
-
     const entryEta = (row.entry_wait!=null) ? now + row.entry_wait*24*3600*1000 : NaN;
     const exitEta  = (row.exit_wait!=null)  ? now + row.exit_wait*24*3600*1000  : NaN;
     const withdrawEta = isFinite(exitEta) ? exitEta + WITHDRAW_DELAY_EPOCHS * EPOCH_SEC * 1000 : NaN;
@@ -222,9 +311,8 @@
     $("refresh").disabled = true;
     showLoader();
     try{
-      const {url, text} = await fetchFirstOkay(ENDPOINTS);
+      const {text} = await fetchFirstOkay(ENDPOINTS);
       const hist = extractHistoricalData(text);
-      // Use the most recent by date (last item is typically latest)
       const latest = hist.reduce((a,b)=> (new Date(a.date) > new Date(b.date) ? a : b));
       renderFromRow(latest);
     }catch(e){
@@ -232,12 +320,11 @@
       const msg = e && e.message ? e.message : String(e);
       alert("Failed to fetch queue data.\n\n" + msg + "\n\nIf this is a CORS issue, the fallback reader may be blocked. We can switch to a tiny proxy later.");
     }finally{
-      setTimeout(()=>{ hideLoader(); $("refresh").disabled = false; }, 500); // keep spinner ~500ms for polish
+      setTimeout(()=>{ hideLoader(); $("refresh").disabled = false; }, 500);
     }
   }
 
   $("refresh").addEventListener("click", refresh);
-  // Initial load
   refresh();
 })();
 </script>
