@@ -5,13 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ETH Staking Transfer Optimisation</title>
 <style>
-  :root { --bg:#0b0c10; --card:#121319; --muted:#7f8c99; --fg:#e8ecf1; --accent:#5ad6a3; --accent2:#9af0ca; --border:#232632; }
+  :root { --bg:#0b0c10; --card:#121319; --muted:#7f8c99; --fg:#e8ecf1; --accent:#5ad6a3; --accent2:#9af0ca; --border:#232632; --sidew: 256px; }
 
   /* Fix overflow: make sizing predictable everywhere */
   *, *::before, *::after { box-sizing: border-box; }
 
   /* Base */
+  html, body { height: 100%; }
   body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background: var(--bg); color: var(--fg); }
+  a { color: inherit; text-decoration: none; } /* no underlines anywhere */
+  body.nav-open { margin-left: var(--sidew); } /* shift content only when sidebar is open */
+
   .container { max-width: 1280px; margin: 32px auto; padding: 0 16px; } /* widened */
   h1 { font-size: 24px; margin: 0 0 16px; }
   h3 { margin: 0 0 12px; }
@@ -112,9 +116,114 @@
   }
   .loader p { color: var(--muted); font-size: 12px; letter-spacing: .02em; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Side Navigation (revamped) ---------- */
+  .sidenav {
+    position: fixed; inset: 0 auto 0 0; width: var(--sidew);
+    background: #0f1016; border-right: 1px solid var(--border);
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    z-index: 1000; transform: translateX(-100%); transition: transform .25s ease;
+  }
+  .sidenav header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding: 6px 6px 12px; }
+  .sidenav .brand { font-weight: 900; letter-spacing:.3px; color: var(--fg); }
+  .sidenav .close {
+    background: transparent; border: 0; color: var(--muted); font-size: 20px; cursor: pointer;
+    border-radius: 10px; padding: 6px;
+  }
+  .sidenav .close:hover { color: var(--fg); background: rgba(255,255,255,.06); }
+
+  .sidenav nav { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+
+  .nav-item {
+    position: relative; display:flex; align-items:center; gap:12px;
+    padding: 10px 12px; border-radius: 12px;
+    color: var(--muted);
+    border: 1px solid rgba(255,255,255,0.06);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    transition: background .2s ease, box-shadow .25s ease, color .2s ease, border-color .2s ease;
+    font-weight: 700; letter-spacing: .2px;
+  }
+  .nav-item::before {
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background: transparent; border-radius: 12px 0 0 12px; transition: background .2s ease;
+  }
+  .nav-item:hover {
+    color: var(--fg);
+    background: linear-gradient(90deg, rgba(90,214,163,.12), rgba(90,214,163,0.02));
+    border-color: rgba(90,214,163,.25);
+    box-shadow: inset 0 0 0 1px rgba(90,214,163,.08), 0 10px 24px rgba(0,0,0,.25);
+  }
+  .nav-item:hover::before { background: var(--accent); }
+
+  .nav-item.active {
+    color: var(--fg);
+    border-color: rgba(90,214,163,.35);
+    background: linear-gradient(90deg, rgba(90,214,163,.16), rgba(90,214,163,0.04));
+    box-shadow: inset 0 0 0 1px rgba(90,214,163,.12);
+  }
+  .nav-item.active::before { background: var(--accent); }
+
+  .nav-icon {
+    width: 18px; height: 18px; flex: 0 0 auto; display:inline-block;
+    filter: drop-shadow(0 1px 0 rgba(0,0,0,.35));
+  }
+
+  /* Toggle button */
+  .sidenav-toggle{
+    position: fixed; left: 12px; top: 12px;
+    z-index: 900; /* lower than the sidenav (which is 1000) */
+    background: var(--accent); color:#042318; border:0; border-radius:12px;
+    padding:10px 12px; font-weight:800; cursor:pointer;
+    box-shadow: 0 10px 24px rgba(90,214,163,.25);
+    transition: opacity .2s ease, transform .2s ease;
+}
+
+/* When the sidebar is open, hide the toggle so it can't overlap the header/X */
+body.nav-open .sidenav-toggle{
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-8px) scale(0.96);
+}
+
+
+  /* Open/close logic */
+  .sidenav.open { transform: translateX(0); }
+  body.nav-open .sidenav { transform: translateX(0); } /* ensure visible when open */
+
+  /* Desktop hint: keep toggle visible too (handy) */
+  @media (min-width: 980px){
+    .sidenav-toggle { left: 12px; top: 12px; }
+  }
 </style>
 </head>
-<body>
+<body class="nav-open"><!-- start with sidebar open -->
+
+<!-- Side Navigation -->
+<button class="sidenav-toggle" id="sidenavToggle" aria-label="Open menu">☰</button>
+<aside class="sidenav" id="sidenav" aria-label="Side navigation">
+  <header>
+    <div class="brand">Dev-0S</div>
+    <button class="close" id="sidenavClose" aria-label="Close">✕</button>
+  </header>
+  <nav>
+    <a href="#" class="nav-item active" id="link-optimiser">
+      <!-- sliders icon -->
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 7h10M4 17h16M14 7v6M10 17v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Staking Transfer Optimiser</span>
+    </a>
+    <a href="https://dev-0s.github.io/os/ethqueue.html" target="_blank" rel="noopener" class="nav-item" id="link-queue">
+      <!-- queue/list icon -->
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 6h16M4 12h12M4 18h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>ETH Queue Monitor</span>
+    </a>
+  </nav>
+</aside>
+
 <div class="container">
   <h1>ETH Staking Transfer Optimisation</h1>
   <p class="desc">Enter 4 source wallet <b>liquid</b> balances, 3 staking wallet <b>liquid</b> balances, and 3 staking wallet <b>staked total balances</b>. <br><br> This software maximizes validators, minimizes transactions, and prefers topping up the wallet with the smallest <b>staked balance</b>. Each transfer carries a buffer (for tx fees), we show min/max leftover buffers after fees.</p>
@@ -176,6 +285,27 @@
 <script>
 (function() {
   "use strict";
+
+  /* ---------- Side nav toggling (works on desktop & mobile) ---------- */
+  const sidenav = document.getElementById('sidenav');
+  const toggleBtn = document.getElementById('sidenavToggle');
+  const closeBtn  = document.getElementById('sidenavClose');
+
+  function openNav(){ document.body.classList.add('nav-open'); sidenav.classList.add('open'); }
+  function closeNav(){ sidenav.classList.remove('open'); document.body.classList.remove('nav-open'); }
+  function toggleNav(){ if (document.body.classList.contains('nav-open')) closeNav(); else openNav(); }
+
+  // Start open by default (matches your previous layout)
+  openNav();
+
+  toggleBtn.addEventListener('click', toggleNav);
+  closeBtn.addEventListener('click', closeNav);
+  // Close when clicking any link (on mobile)
+  sidenav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+  // Close on ESC
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeNav(); });
+
+  /* ---------- Existing planner code (unchanged) ---------- */
 
   // ------- Config / formatting -------
   const DEC_DESKTOP = 8;
