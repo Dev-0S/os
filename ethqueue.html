@@ -50,7 +50,6 @@
   .kv .k{ color:var(--muted); }
   .kv .v{ text-align:right; font-weight:700; }
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
-
   .note{ font-size:12px; color:var(--muted); margin-top:6px; }
 
   /* Loader */
@@ -122,14 +121,52 @@
     box-shadow: 0 10px 24px rgba(90,214,163,.25);
     transition: opacity .2s ease, transform .2s ease;
   }
-  /* Hide toggle when sidebar open (prevents overlap) */
   body.nav-open .sidenav-toggle{ opacity:0; pointer-events:none; transform: translateX(-8px) scale(0.96); }
+
+  /* Range slider — accent green track & thumb */
+  input[type="range"]{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: rgba(90,214,163,.18);
+    border-radius: 999px;
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    accent-color: var(--accent);
+  }
+  input[type="range"]::-webkit-slider-runnable-track{
+    height: 8px; background: var(--accent); border-radius: 999px;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--fg);
+    border: 2px solid var(--accent);
+    margin-top: -5px;
+    box-shadow: 0 6px 14px rgba(90,214,163,.35);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-track{
+    height: 8px; background: var(--accent); border-radius: 999px;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--fg);
+    border: 2px solid var(--accent);
+    box-shadow: 0 6px 14px rgba(90,214,163,.35);
+    cursor: pointer;
+  }
+  input[type="range"]:hover::-webkit-slider-thumb,
+  input[type="range"]:focus-visible::-webkit-slider-thumb{ filter: brightness(1.02); transform: scale(1.02); }
+  input[type="range"]:hover::-moz-range-thumb,
+  input[type="range"]:focus-visible::-moz-range-thumb{ filter: brightness(1.02); transform: scale(1.02); }
 
   /* Open state */
   .sidenav.open{ transform: translateX(0); }
 </style>
 </head>
-<body class="nav-open"><!-- start open to match the other page -->
+<body class="nav-open">
 
 <!-- Sidebar -->
 <button class="sidenav-toggle" id="sidenavToggle" aria-label="Open menu">☰</button>
@@ -140,14 +177,12 @@
   </header>
   <nav>
     <a href="https://dev-0s.github.io/os/ethtx.html" class="nav-item" id="link-optimiser" title="Staking Transfer Optimiser">
-      <!-- sliders icon -->
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M4 7h10M4 17h16M14 7v6M10 17v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
       <span>Staking Transfer Optimiser</span>
     </a>
     <a href="https://dev-0s.github.io/os/ethqueue.html" target="_self" class="nav-item active" id="link-queue" title="ETH Queue Monitor">
-      <!-- list icon -->
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M4 6h16M4 12h12M4 18h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
@@ -156,67 +191,85 @@
   </nav>
 </aside>
 
-  <!-- NAV -->
-  <nav class="nav">
-    <div class="nav-inner">
-      <div class="container" style="display:flex; align-items:center; gap:16px;">
-        <div class="brand">Dev<span class="dot">-</span>0S</div>
-        <div class="nav-actions" style="margin-left:auto;">
-          <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
-        </div>
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="container" style="display:flex; align-items:center; gap:16px;">
+      <div class="brand">Dev<span class="dot">-</span>0S</div>
+      <div class="nav-actions" style="margin-left:auto;">
+        <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
       </div>
     </div>
-  </nav>
-
-  <!-- HERO -->
-  <header class="hero">
-    <div class="hero-content container">
-      <h1 class="title">Ethereum Entry / Exit Queue Monitor</h1>
-      <p class="subtitle">Live snapshot parsed from validatorqueue.com. We show queue sizes, estimated waits, and exit → withdrawable timing (+256 epochs).</p>
-    </div>
-  </header>
-
-  <!-- CONTENT -->
-  <section>
-    <div class="container grid grid-3">
-      <div class="card pad">
-        <h3>Status</h3>
-        <div class="kv">
-          <div class="k">Snapshot date</div><div class="v mono" id="snapDate">—</div>
-          <div class="k">Active validators</div><div class="v mono" id="active">—</div>
-          <div class="k">Churn / epoch</div><div class="v mono" id="churn">—</div>
-        </div>
-        <div class="note">If the site updates daily, “Snapshot date” reflects their latest data point.</div>
-      </div>
-
-      <div class="card pad">
-        <h3>Entry Queue</h3>
-        <div class="kv">
-          <div class="k">Validators waiting</div><div class="v mono" id="entryQ">—</div>
-          <div class="k">Estimated wait</div><div class="v mono" id="entryWait">—</div>
-          <div class="k">ETA to activation</div><div class="v mono" id="entryEta">—</div>
-        </div>
-        <div class="note">ETA = now + wait (days). Assumes churn and queue stay roughly stable.</div>
-      </div>
-
-      <div class="card pad">
-        <h3>Exit Queue</h3>
-        <div class="kv">
-          <div class="k">Validators waiting</div><div class="v mono" id="exitQ">—</div>
-          <div class="k">Estimated wait</div><div class="v mono" id="exitWait">—</div>
-          <div class="k">ETA to exit</div><div class="v mono" id="exitEta">—</div>
-          <div class="k">Withdrawable (+256 epochs)</div><div class="v mono" id="withdrawEta">—</div>
-        </div>
-        <div class="note">After exit is processed, funds become withdrawable ~27.3 hours later (256 epochs).</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- LOADER -->
-  <div id="loader" class="loader hidden" aria-hidden="true">
-    <div class="spinner"></div>
-    <p>Fetching validator queue…</p>
   </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-content container">
+    <h1 class="title">Ethereum Entry / Exit Queue Monitor</h1>
+    <p class="subtitle">Live snapshot from beaconcha.in's /validators/queue API. We show queue sizes, estimated waits, and exit → withdrawable timing (+9.4 days sweep).</p>
+  </div>
+</header>
+
+<!-- CONTENT -->
+<section>
+  <div class="container grid grid-3">
+    <div class="card pad">
+      <h3>Status</h3>
+      <div class="kv">
+        <div class="k">Last refresh</div><div class="v mono" id="snapDate">—</div>
+        <div class="k">Active validators</div><div class="v mono" id="active">—</div>
+        <div class="k">Churn / epoch</div><div class="v mono" id="churn">256 / epoch</div>
+        <div class="k">ETH sweep</div><div class="v mono" id="statusSweep">9.4 days</div>
+      </div>
+      <div class="note">ETH sweep is fixed at 9.4 days and is added to the exit queue wait to estimate withdrawal time.</div>
+    </div>
+
+    <div class="card pad">
+      <h3>Entry Queue</h3>
+      <div class="kv">
+        <div class="k">Validators</div><div class="v mono" id="entryQ">—</div>
+        <div class="k">ETH</div><div class="v mono" id="entryEth">—</div>
+        <div class="k">Entry wait</div><div class="v mono" id="entryWait">—</div>
+        <div class="k">ETA</div><div class="v mono" id="entryEta">—</div>
+      </div>
+      <div class="note">Entry wait uses the ETH amount in the entry queue (÷256 ETH/epoch → epochs → minutes → hours → days).</div>
+    </div>
+
+    <div class="card pad">
+      <h3>Exit Queue</h3>
+      <div class="kv">
+        <div class="k">Validators</div><div class="v mono" id="exitQ">—</div>
+        <div class="k">ETH</div><div class="v mono" id="exitEth">—</div>
+        <div class="k">Exit queue</div><div class="v mono" id="exitWait">—</div>
+        <div class="k">ETA</div><div class="v mono" id="withdrawEta">—</div>
+      </div>
+      <div class="note">ETA = now + exit queue wait + 9.4 day sweep. Assumes churn and queues are roughly stable.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="card pad">
+      <h3>ETH - Exit Queue Slider</h3>
+      <div class="grid grid-1" style="gap:12px;">
+        <input id="ethSlider" type="range" min="1" max="1000000" step="1" value="32" />
+        <div class="kv">
+          <div class="k">ETH</div><div class="v mono" id="ethSliderVal">32</div>
+          <div class="k">Days</div><div class="v mono" id="ethSliderHours">—</div>
+        </div>
+        <div class="note">Formula: <span class="mono">((ETH / 256) / ((12 * 32)/60)) / 60</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOADER -->
+<div id="loader" class="loader hidden" aria-hidden="true">
+  <div class="spinner"></div>
+  <p>Fetching validator queue…</p>
+</div>
 
 <script>
 (function(){
@@ -229,99 +282,120 @@
   function openNav(){ document.body.classList.add('nav-open'); sidenav.classList.add('open'); }
   function closeNav(){ sidenav.classList.remove('open'); document.body.classList.remove('nav-open'); }
   function toggleNav(){ if (document.body.classList.contains('nav-open')) closeNav(); else openNav(); }
-  // start open (to match  other page)
   openNav();
   toggleBtn.addEventListener('click', toggleNav);
   closeBtn.addEventListener('click', closeNav);
   sidenav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
   document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeNav(); });
 
-  /* Existing queue code */
-  const ENDPOINTS = [
-    "https://www.validatorqueue.com/",
-    "https://validatorqueue.com/",
-    "https://r.jina.ai/http://www.validatorqueue.com/",
-    "https://r.jina.ai/http://validatorqueue.com/"
-  ];
-
-  const EPOCH_SEC = 32 * 12;              // 6.4 minutes
-  const WITHDRAW_DELAY_EPOCHS = 256;      // ~27.3067 hours
+  /* --------- New queue code (beaconcha.in) --------- */
+  const API_URL = "https://beaconcha.in/api/v1/validators/queue";
+  const SWEEP_DAYS = 9.4;
 
   const $ = (id) => document.getElementById(id);
   const fmtInt = (n)=> (n==null? "—" : Number(n).toLocaleString());
-  const fmtDays = (d)=> (d==null? "—" : `${d.toFixed(2)} days`);
-  const fmtDT = (ms)=> isFinite(ms) ? new Date(ms).toLocaleString() : "—";
+  const fmtDT = (ms) => {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+};
+  const fmtDH = (d,h)=> `${d} days, ${h} hours`;
 
   const loader = $("loader");
   function showLoader(){ loader.classList.remove("hidden"); loader.setAttribute("aria-hidden","false"); }
   function hideLoader(){ loader.classList.add("hidden"); loader.setAttribute("aria-hidden","true"); }
 
-  async function fetchFirstOkay(urls){
-    let lastErr;
-    for (const url of urls){
-      try{
-        const res = await fetch(url, {mode:"cors"});
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        if (!text || text.length < 1000) throw new Error("Empty/short response");
-        return {url, text};
-      }catch(e){ lastErr = e; }
-    }
-    throw lastErr || new Error("All endpoints failed");
+  // API sends balances with trailing zeros; trimming converts to integer ETH
+  function stripTrailingZerosToInt(value){
+    const s = String(value);
+    const stripped = s.replace(/0+$/,'');
+    return parseInt(stripped || '0', 10);
   }
 
-  function extractHistoricalData(htmlText){
-    const m = htmlText.match(/historical_data\s*=\s*(\[[\s\S]*?\]);/);
-    if (!m) throw new Error("Could not locate historical_data in the page");
-    let jsonText = m[1];
-    jsonText = jsonText.replace(/,\s*([}\]])/g, "$1");
-    try{
-      const arr = JSON.parse(jsonText);
-      if (!Array.isArray(arr) || !arr.length) throw new Error("historical_data not an array");
-      return arr;
-    }catch(e){
-      const repaired = jsonText.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-      const arr = JSON.parse(repaired);
-      if (!Array.isArray(arr) || !arr.length) throw new Error("historical_data parse error");
-      return arr;
-    }
+  // Python-equivalent wait calculator — expects ETH in queue
+  function ethQueueWait(ethAmount){
+    const epoch_wait = ethAmount / 256;                  // 256 ETH per epoch (8 validators × 32 ETH)
+    const min_wait = epoch_wait * ((12 * 32) / 60);      // 6.4 minutes per epoch
+    const hour_wait = min_wait / 60;
+    const days_wait = hour_wait / 24;
+    const whole_days = Math.trunc(days_wait);
+    const hours = Math.round((days_wait - whole_days) * 24);
+    return { whole_days, hours };
   }
 
-  function renderFromRow(row){
-    const now = Date.now();
-    const entryEta = (row.entry_wait!=null) ? now + row.entry_wait*24*3600*1000 : NaN;
-    const exitEta  = (row.exit_wait!=null)  ? now + row.exit_wait*24*3600*1000  : NaN;
-    const withdrawEta = isFinite(exitEta) ? exitEta + WITHDRAW_DELAY_EPOCHS * EPOCH_SEC * 1000 : NaN;
-
-    $("snapDate").textContent = row.date || "—";
-    $("active").textContent   = fmtInt(row.validators);
-    $("churn").textContent    = row.churn != null ? `${row.churn} / epoch` : "—";
-
-    $("entryQ").textContent   = fmtInt(row.entry_queue);
-    $("entryWait").textContent= row.entry_wait!=null ? fmtDays(Number(row.entry_wait)) : "—";
-    $("entryEta").textContent = fmtDT(entryEta);
-
-    $("exitQ").textContent    = fmtInt(row.exit_queue);
-    $("exitWait").textContent = row.exit_wait!=null ? fmtDays(Number(row.exit_wait)) : "—";
-    $("exitEta").textContent  = fmtDT(exitEta);
-    $("withdrawEta").textContent = fmtDT(withdrawEta);
-  }
+  function toMs(days, hours){ return (days + hours/24) * 24 * 3600 * 1000; }
 
   async function refresh(){
     $("refresh").disabled = true;
     showLoader();
     try{
-      const {text} = await fetchFirstOkay(ENDPOINTS);
-      const hist = extractHistoricalData(text);
-      const latest = hist.reduce((a,b)=> (new Date(a.date) > new Date(b.date) ? a : b));
-      renderFromRow(latest);
+      const res = await fetch(API_URL, { mode: "cors" });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if(!json || json.status !== 'OK' || !json.data) throw new Error('Unexpected payload');
+
+      const d = json.data;
+      const now = Date.now();
+
+       // ---- Entry (validators → ETH) ----
+      const entryValidators = Number(d.beaconchain_entering) || 0;
+      const entryEth = entryValidators * 32;
+      const entryWait = ethQueueWait(entryEth);
+      const entryEtaMs = now + toMs(entryWait.whole_days, entryWait.hours);
+
+      // ---- Exit: ETH & validators ----
+      const exitEth = stripTrailingZerosToInt(d.beaconchain_exiting_balance);   // ETH
+      const exitValidators = Math.floor(exitEth / 32);
+      const exitWait = ethQueueWait(exitEth);
+      const withdrawEtaMs = now + toMs(exitWait.whole_days, exitWait.hours) + SWEEP_DAYS * 24 * 3600 * 1000;
+
+      // ---- Status ----
+      $("snapDate").textContent = fmtDT(now);
+      $("active").textContent   = fmtInt(d.validatorscount);
+      $("statusSweep").textContent = `${SWEEP_DAYS} days`;
+
+      // ---- Entry card ----
+      $("entryQ").textContent    = fmtInt(entryValidators);
+      $("entryEth").textContent  = `${fmtInt(entryEth)} ETH`;
+      $("entryWait").textContent = fmtDH(entryWait.whole_days, entryWait.hours);
+      $("entryEta").textContent  = fmtDT(entryEtaMs);
+
+      // ---- Exit card ----
+      $("exitQ").textContent     = fmtInt(exitValidators);
+      $("exitEth").textContent   = `${fmtInt(exitEth)} ETH`;
+      $("exitWait").textContent  = fmtDH(exitWait.whole_days, exitWait.hours);
+      $("withdrawEta").textContent = fmtDT(withdrawEtaMs);
+
     }catch(e){
       console.error(e);
       const msg = e && e.message ? e.message : String(e);
-      alert("Failed to fetch queue data.\n\n" + msg + "\n\nIf this is a CORS issue, the fallback reader may be blocked. We can switch to a tiny proxy later.");
+      alert("Failed to fetch queue data.\n\n" + msg + "\n\nIf this is a CORS issue, we can add a tiny proxy or cached mirror.");
     }finally{
-      setTimeout(()=>{ hideLoader(); $("refresh").disabled = false; }, 500);
+      setTimeout(()=>{ hideLoader(); $("refresh").disabled = false; }, 400);
     }
+  }
+
+  // --- Slider calc: ((ETH / 256) / ((12 * 32)/60)) / 60 => hours ---
+  function calcHoursFromEth(eth){
+    return ((eth / 256) / ((12 * 32) / 60)) / 60;
+  }
+  function updateEthSliderUI(){
+    const slider = document.getElementById("ethSlider");
+    if (!slider) return;
+    const ethVal = Number(slider.value) || 0;
+    $("ethSliderVal").textContent = fmtInt(ethVal);
+    const hours = calcHoursFromEth(ethVal);
+    $("ethSliderHours").textContent = hours.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+  const ethSliderEl = document.getElementById("ethSlider");
+  if (ethSliderEl){
+    ethSliderEl.addEventListener("input", updateEthSliderUI);
+    updateEthSliderUI();
   }
 
   $("refresh").addEventListener("click", refresh);
