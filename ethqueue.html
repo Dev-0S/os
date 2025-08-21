@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ETH Queue Monitor — Dev-0S</title>
 <meta name="theme-color" content="#0b0c10" />
-<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 
 <style>
   :root { --bg:#0b0c10; --card:#121319; --muted:#8c98a6; --fg:#e8ecf1; --accent:#5ad6a3; --accent2:#9af0ca; --border:#232632; --radius:16px; --container:1280px; --shadow:0 10px 30px rgba(0,0,0,.35); --sidew:256px; }
@@ -312,11 +312,12 @@
   function showLoader(){ loader.classList.remove("hidden"); loader.setAttribute("aria-hidden","false"); }
   function hideLoader(){ loader.classList.add("hidden"); loader.setAttribute("aria-hidden","true"); }
 
-  // API sends balances with trailing zeros; trimming converts to integer ETH
-  function stripTrailingZerosToInt(value){
-    const s = String(value);
-    const stripped = s.replace(/0+$/,'');
-    return parseInt(stripped || '0', 10);
+  // API returns balances in gwei. Convert to whole ETH.
+  function gweiToEthInt(value){
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    // Use trunc so we don't overstate ETH; change to Math.round if you prefer.
+    return Math.trunc(n / 1e9);
   }
 
   // Python-equivalent wait calculator — expects ETH in queue
@@ -344,17 +345,19 @@
       const d = json.data;
       const now = Date.now();
 
-       // ---- Entry (validators → ETH) ----
+      // ---- Entry (use balance from API, fallback to validators×32) ----
       const entryValidators = Number(d.beaconchain_entering) || 0;
-      const entryEth = entryValidators * 32;
+      const entryEthFromApi = gweiToEthInt(d.beaconchain_entering_balance);
+      const entryEth = entryEthFromApi || (entryValidators * 32);
       const entryWait = ethQueueWait(entryEth);
       const entryEtaMs = now + toMs(entryWait.whole_days, entryWait.hours);
 
       // ---- Exit: ETH & validators ----
-      const exitEth = stripTrailingZerosToInt(d.beaconchain_exiting_balance);   // ETH
-      const exitValidators = Math.floor(exitEth / 32);
+      const exitEth = gweiToEthInt(d.beaconchain_exiting_balance); // ETH (from gwei)
+      const exitValidators = Number(d.beaconchain_exiting) || Math.floor(exitEth / 32);
       const exitWait = ethQueueWait(exitEth);
       const withdrawEtaMs = now + toMs(exitWait.whole_days, exitWait.hours) + SWEEP_DAYS * 24 * 3600 * 1000;
+
 
       // ---- Status ----
       $("snapDate").textContent = fmtDT(now);
