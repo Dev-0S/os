@@ -261,7 +261,7 @@
           <div class="k">ETH</div><div class="v mono" id="ethSliderVal">32</div>
           <div class="k">Days</div><div class="v mono" id="ethSliderHours">—</div>
         </div>
-        <div class="note">Formula: <span class="mono">((ETH / 256) / ((12 * 32)/60)) / 60</span></div>
+        <div class="note">Formula: <span class="mono">((ETH / 256) × 6.4) ÷ 60 ÷ 24  ≡  ETH ÷ 57,600</span></div>
       </div>
     </div>
   </div>
@@ -385,17 +385,14 @@
     }
   }
 
-  // --- Slider calc: ((ETH / 256) / ((12 * 32)/60)) / 60 => hours ---
-  function calcHoursFromEth(eth){
-    return ((eth / 256) / ((12 * 32) / 60)) / 60;
-  }
+  // Slider: show "X days, Y hours" using the same wait logic as the cards
   function updateEthSliderUI(){
     const slider = document.getElementById("ethSlider");
     if (!slider) return;
     const ethVal = Number(slider.value) || 0;
     $("ethSliderVal").textContent = fmtInt(ethVal);
-    const hours = calcHoursFromEth(ethVal);
-    $("ethSliderHours").textContent = hours.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    const wait = ethQueueWait(ethVal); // expects ETH
+    $("ethSliderHours").textContent = `${wait.whole_days} days, ${wait.hours} hours`;
   }
   const ethSliderEl = document.getElementById("ethSlider");
   if (ethSliderEl){
