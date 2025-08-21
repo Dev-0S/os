@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>ETH Queue Monitor — Dev-0S</title>
+<meta name="theme-color" content="#0b0c10" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+<style>
+  :root{
+    /* Palette tuned for a CoinShares-like, high-contrast editorial look */
+    --bg:#0b0c10;            /* page background */
+    --surface:#0f1016;       /* cards / panels */
+    --ink:#e8ecf1;           /* primary text */
+    --muted:#98a2ad;         /* secondary text */
+    --line:#242733;          /* borders */
+    --accent:#5ad6a3;        /* action accent */
+    --accent-2:#9af0ca;      /* subtle accent */
+    --shadow:0 18px 44px rgba(0,0,0,.35);
+    --radius:18px;
+    --container:1240px;
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+    line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  a{ color:inherit; text-decoration:none; }
+  .container{ max-width:var(--container); margin:0 auto; padding:0 24px; }
+
+  /* ---------------- Top “metrics” strip (like AUM/Share Price) ---------------- */
+  .meta-strip{
+    position:fixed; inset:0 0 auto 0; height:36px; z-index:30;
+    display:flex; align-items:center;
+    backdrop-filter:saturate(140%) blur(8px);
+    background:rgba(14,15,21,.55);
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .meta-items{ display:flex; gap:12px; align-items:center; font-size:12px; letter-spacing:.02em; color:var(--muted); }
+  .chip{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+    border:1px solid rgba(255,255,255,.08); border-radius:999px;
+    background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+    white-space:nowrap;
+  }
+  .chip b{ color:var(--ink); font-weight:800; }
+
+  /* ---------------- Main nav ---------------- */
+  .nav{
+    position:fixed; top:36px; left:0; right:0; z-index:20;
+    backdrop-filter:saturate(140%) blur(8px);
+    background:rgba(13,14,20,.55);
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .nav-inner{ height:64px; display:flex; align-items:center; gap:20px; }
+  .brand{ font-weight:900; letter-spacing:.3px; font-size:18px; }
+  .brand .dot{ color:var(--accent); }
+  .navlinks{ margin-left:auto; display:flex; gap:22px; align-items:center; color:var(--muted); font-weight:700; }
+  .navlinks a{ padding:8px 0; }
+  .navlinks a:hover{ color:var(--ink); }
+  .btn{
+    display:inline-flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
+    background:var(--accent); color:#062c1f; border:0; border-radius:14px; padding:10px 16px; font-weight:800;
+    transition: transform .15s ease, box-shadow .25s ease, filter .25s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); box-shadow:0 14px 28px rgba(90,214,163,.28); filter:brightness(1.05); }
+  .btn:disabled{ opacity:.65; cursor:not-allowed; }
+
+  /* --- HERO (video background) --- */
+  .hero{
+    position:relative; min-height:64vh; display:grid; align-items:center; overflow:hidden;
+    margin-top:100px; /* keep your meta+nav offset */
+  }
+
+  /* remove the old image background */
+  .hero::before{ content:none; }
+
+  /* keep the dark overlay, but ensure it's above the video */
+  .hero::after{
+    content:""; position:absolute; inset:0;
+    background:
+      radial-gradient(90% 70% at 20% 20%, rgba(12,13,18,.05), rgba(12,13,18,.85)),
+      linear-gradient(180deg, rgba(12,13,18,.15), rgba(12,13,18,.92) 60%, rgba(12,13,18,.96));
+    z-index:1;
+  }
+
+  /* video fills the hero */
+  .hero .bg-video{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    transform:scale(1.02);
+    filter:saturate(1.06) contrast(1.02);
+    z-index:0; pointer-events:none;
+  }
+
+  /* content sits above overlay */
+  .hero-content{
+    position:relative; z-index:2; padding:12vh 0;
+    display:grid; grid-template-columns: minmax(280px, 1.2fr) minmax(260px, .8fr); gap:32px;
+  }
+
+  @media (max-width: 860px){
+    .hero-content{ grid-template-columns:1fr; gap:18px; padding:10vh 0; }
+  }
+
+  /* optional accessibility: respect reduced motion */
+  @media (prefers-reduced-motion: reduce){
+    .hero .bg-video{ display:none; }
+  }
+
+  .title{
+      font-size: clamp(36px, 6.8vw, 76px);
+      font-weight:900; letter-spacing:.4px; line-height:1.05; margin:0 0 8px;
+    }
+  .subtitle{ color:var(--muted); margin:0; max-width:56ch; }
+
+  /* ---------------- Sections & cards ---------------- */
+  section{ padding: 26px 0 46px; }
+  .grid{ display:grid; gap:16px; }
+  .grid-3{ grid-template-columns: repeat(3, 1fr); }
+  .grid-2{ grid-template-columns: repeat(2, 1fr); }
+  .grid-1{ grid-template-columns: 1fr; }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  .pad{ padding:20px 22px; }
+  h3{ margin:0 0 10px; font-size:18px; font-weight:800; letter-spacing:.2px; }
+  .muted{ color:var(--muted); }
+  .kv{ display:grid; grid-template-columns: auto 1fr; gap:8px 12px; align-items:center; }
+  .kv .k{ color:var(--muted); }
+  .kv .v{ text-align:right; font-weight:800; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .note{ font-size:12px; color:var(--muted); margin-top:8px; }
+
+  /* ---------------- Slider (accented track & thumb) ---------------- */
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:999px; outline:none;
+    background: rgba(90,214,163,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    accent-color: var(--accent);
+  }
+  input[type="range"]::-webkit-slider-runnable-track{ height:8px; background:var(--accent); border-radius:999px; }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--ink); border:2px solid var(--accent);
+    margin-top:-5px; box-shadow:0 6px 14px rgba(90,214,163,.35); cursor:pointer;
+  }
+  input[type="range"]::-moz-range-track{ height:8px; background:var(--accent); border-radius:999px; }
+  input[type="range"]::-moz-range-thumb{
+    width:18px; height:18px; border-radius:50%; background:var(--ink); border:2px solid var(--accent);
+    box-shadow:0 6px 14px rgba(90,214,163,.35); cursor:pointer;
+  }
+  input[type="range"]:hover::-webkit-slider-thumb,
+  input[type="range"]:focus-visible::-webkit-slider-thumb{ filter:brightness(1.02); transform:scale(1.02); }
+  input[type="range"]:hover::-moz-range-thumb,
+  input[type="range"]:focus-visible::-moz-range-thumb{ filter:brightness(1.02); transform:scale(1.02); }
+
+  /* ---------------- Loader ---------------- */
+  .loader.hidden{ display:none; }
+  .loader{
+    position:fixed; inset:0; display:grid; place-items:center;
+    background: rgba(11,12,16,.55); backdrop-filter: blur(2px); z-index:9999;
+  }
+  .spinner{ width:78px; height:78px; position:relative; margin-bottom:12px; }
+  .spinner::before,.spinner::after{
+    content:""; position:absolute; inset:0; border-radius:50%; border:3px solid transparent; border-top-color:var(--accent);
+    animation:spin 1s linear infinite;
+  }
+  .spinner::after{ inset:8px; border-top-color:var(--accent-2); animation-duration:1.6s; }
+  .loader p{ color:var(--muted); font-size:12px; letter-spacing:.02em; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ---------------- Responsive ---------------- */
+  @media (max-width: 1080px){ .grid-3{ grid-template-columns: repeat(2, 1fr);} }
+  @media (max-width: 860px){
+    .hero-content{ grid-template-columns: 1fr; gap:18px; }
+    .title{ font-size: clamp(32px, 8.5vw, 64px); }
+    .grid-2,.grid-3{ grid-template-columns:1fr; }
+    .hero::before{ background-attachment:scroll; }
+    .navlinks{ display:none; } /* keep it minimal on mobile */
+  }
+</style>
+</head>
+<body>
+
+<!-- Top metrics strip -->
+<div class="meta-strip">
+  <div class="container">
+    <div class="meta-items">
+      <span class="chip">Snapshot <b id="chipDate">—</b></span>
+      <span class="chip">Active validators <b id="chipActive">—</b></span>
+      <span class="chip">Churn/epoch <b id="chipChurn">256</b></span>
+      <span class="chip">Sweep <b>9.4 days</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- Primary nav -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <div class="brand">Dev<span class="dot">-</span>0S</div>
+    <div class="navlinks">
+      <a href="#overview">Overview</a>
+      <a href="#entry">Entry</a>
+      <a href="#exit">Exit</a>
+      <a href="#calc">Calculator</a>
+    </div>
+    <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="overview" aria-label="Ethereum Queue Overview">
+  <video class="bg-video" autoplay muted loop playsinline preload="metadata">
+    <source src="https://a.storyblok.com/f/176807/x/28318e5177/9957-46bd-9b60-81fbef83c2bd.mp4" type="video/mp4" />
+  </video>
+
+  <div class="hero-content container">
+    <div>
+      <h1 class="title">Ethereum <br> Entry / Exit Queue Monitor</h1>
+    </div>
+    <p class="subtitle">
+      Live snapshot from beaconcha.in’s <span class="mono">/validators/queue</span> API. Track entry and exit queue sizes,
+      estimated waits, and a withdraw-ready ETA that includes the post-exit sweep (fixed at 9.4 days).
+    </p>
+  </div>
+</header>
+
+<!-- CONTENT -->
+<section>
+  <div class="container grid grid-3">
+    <div class="card pad">
+      <h3>Network Details</h3>
+      <div class="kv">
+        <div class="k">Last refresh</div><div class="v mono" id="snapDate">—</div>
+        <div class="k">Active validators</div><div class="v mono" id="active">—</div>
+        <div class="k">Churn / epoch</div><div class="v mono" id="churn">256 / epoch</div>
+        <div class="k">ETH sweep</div><div class="v mono" id="statusSweep">9.4 days</div>
+      </div>
+      <div class="note">Sweep time is added to the exit queue wait to estimate the <em>withdraw-ready</em> time.</div>
+    </div>
+
+    <div class="card pad" id="entry">
+      <h3>Entry Queue</h3>
+      <div class="kv">
+        <div class="k">Validators</div><div class="v mono" id="entryQ">—</div>
+        <div class="k">ETH</div><div class="v mono" id="entryEth">—</div>
+        <div class="k">Entry wait</div><div class="v mono" id="entryWait">—</div>
+        <div class="k">ETA</div><div class="v mono" id="entryEta">—</div>
+      </div>
+      <div class="note">Wait uses ETH in the entry queue → epochs (÷256 ETH) → minutes → hours → days.</div>
+    </div>
+
+    <div class="card pad" id="exit">
+      <h3>Exit Queue</h3>
+      <div class="kv">
+        <div class="k">Validators</div><div class="v mono" id="exitQ">—</div>
+        <div class="k">ETH</div><div class="v mono" id="exitEth">—</div>
+        <div class="k">Exit queue</div><div class="v mono" id="exitWait">—</div>
+        <div class="k">Withdraw-ready ETA</div><div class="v mono" id="withdrawEta">—</div>
+      </div>
+      <div class="note">ETA = now + exit queue wait + 9.4-day sweep. Assumes churn and queues remain broadly stable.</div>
+    </div>
+  </div>
+</section>
+
+<section id="calc">
+  <div class="container">
+    <div class="card pad">
+      <h3>Exit Queue - Unstaking Impact</h3>
+      <div class="grid grid-1" style="gap:12px;">
+        <input id="ethSlider" type="range" min="1" max="1000000" step="1" value="32" />
+        <div class="kv">
+          <div class="k">ETH</div><div class="v mono" id="ethSliderVal">32</div>
+          <div class="k">Estimated wait</div><div class="v mono" id="ethSliderHours">—</div>
+        </div>
+        <div class="note">Formula: <span class="mono">((ETH / 256) × 6.4) ÷ 60 ÷ 24  ≡  ETH ÷ 57,600</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOADER -->
+<div id="loader" class="loader hidden" aria-hidden="true">
+  <div class="spinner"></div>
+  <p>Fetching validator queue…</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* --------- Queue logic (beaconcha.in) --------- */
+  const API_URL = "https://beaconcha.in/api/v1/validators/queue";
+  const SWEEP_DAYS = 9.4;
+
+  const $ = (id) => document.getElementById(id);
+  const fmtInt = (n)=> (n==null? "—" : Number(n).toLocaleString());
+  const fmtDT = (ms) => {
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return "—";
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  };
+  const fmtDH = (d,h)=> `${d} days, ${h} hours`;
+
+  const loader = $("loader");
+  function showLoader(){ loader.classList.remove("hidden"); loader.setAttribute("aria-hidden","false"); }
+  function hideLoader(){ loader.classList.add("hidden"); loader.setAttribute("aria-hidden","true"); }
+
+  // API returns balances in gwei. Convert to whole ETH.
+  function gweiToEthInt(value){
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.trunc(n / 1e9);
+  }
+
+  // Wait calculator — expects ETH in queue
+  function ethQueueWait(ethAmount){
+    const epoch_wait = ethAmount / 256;               // 256 ETH per epoch (8 validators × 32 ETH)
+    const min_wait = epoch_wait * ((12 * 32) / 60);   // 6.4 minutes per epoch
+    const hour_wait = min_wait / 60;
+    const days_wait = hour_wait / 24;
+    const whole_days = Math.trunc(days_wait);
+    const hours = Math.round((days_wait - whole_days) * 24);
+    return { whole_days, hours };
+  }
+
+  function toMs(days, hours){ return (days + hours/24) * 24 * 3600 * 1000; }
+
+  async function refresh(){
+    $("refresh").disabled = true;
+    showLoader();
+    try{
+      const res = await fetch(API_URL, { mode: "cors" });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if(!json || json.status !== 'OK' || !json.data) throw new Error('Unexpected payload');
+
+      const d = json.data;
+      const now = Date.now();
+
+      // Entry (prefer balance from API; fallback)
+      const entryValidators = Number(d.beaconchain_entering) || 0;
+      const entryEthFromApi = gweiToEthInt(d.beaconchain_entering_balance);
+      const entryEth = entryEthFromApi || (entryValidators * 32);
+      const entryWait = ethQueueWait(entryEth);
+      const entryEtaMs = now + toMs(entryWait.whole_days, entryWait.hours);
+
+      // Exit
+      const exitEth = gweiToEthInt(d.beaconchain_exiting_balance);
+      const exitValidators = Number(d.beaconchain_exiting) || Math.floor(exitEth / 32);
+      const exitWait = ethQueueWait(exitEth);
+      const withdrawEtaMs = now + toMs(exitWait.whole_days, exitWait.hours) + SWEEP_DAYS * 24 * 3600 * 1000;
+
+      // Meta strip
+      $("chipDate").textContent   = fmtDT(now);
+      $("chipActive").textContent = fmtInt(d.validatorscount);
+      $("chipChurn").textContent  = "256";
+
+      // Details card
+      $("snapDate").textContent   = fmtDT(now);
+      $("active").textContent     = fmtInt(d.validatorscount);
+      $("statusSweep").textContent = `${SWEEP_DAYS} days`;
+
+      // Entry card
+      $("entryQ").textContent    = fmtInt(entryValidators);
+      $("entryEth").textContent  = `${fmtInt(entryEth)} ETH`;
+      $("entryWait").textContent = fmtDH(entryWait.whole_days, entryWait.hours);
+      $("entryEta").textContent  = fmtDT(entryEtaMs);
+
+      // Exit card
+      $("exitQ").textContent     = fmtInt(exitValidators);
+      $("exitEth").textContent   = `${fmtInt(exitEth)} ETH`;
+      $("exitWait").textContent  = fmtDH(exitWait.whole_days, exitWait.hours);
+      $("withdrawEta").textContent = fmtDT(withdrawEtaMs);
+
+    }catch(e){
+      console.error(e);
+      const msg = e && e.message ? e.message : String(e);
+      alert("Failed to fetch queue data.\n\n" + msg + "\n\nIf this is a CORS issue, a small proxy or cached mirror will fix it.");
+    }finally{
+      setTimeout(()=>{ hideLoader(); $("refresh").disabled = false; }, 400);
+    }
+  }
+
+  // Slider updates
+  function updateEthSliderUI(){
+    const slider = document.getElementById("ethSlider");
+    if (!slider) return;
+    const ethVal = Number(slider.value) || 0;
+    $("ethSliderVal").textContent = fmtInt(ethVal);
+    const wait = ethQueueWait(ethVal);
+    $("ethSliderHours").textContent = `${wait.whole_days} days, ${wait.hours} hours`;
+  }
+  const ethSliderEl = document.getElementById("ethSlider");
+  if (ethSliderEl){
+    ethSliderEl.addEventListener("input", updateEthSliderUI);
+    updateEthSliderUI();
+  }
+
+  document.getElementById("refresh").addEventListener("click", refresh);
+  refresh();
+})();
+</script>
+</body>
+</html>
