@@ -360,7 +360,11 @@
       const exitEth = gweiToEthInt(d.beaconchain_exiting_balance);
       const exitValidators = Number(d.beaconchain_exiting) || Math.floor(exitEth / 32);
       const exitWait = ethQueueWait(exitEth);
-      const withdrawEtaMs = now + toMs(exitWait.whole_days, exitWait.hours) + SWEEP_DAYS * 24 * 3600 * 1000;
+      const withdrawEtaMs =
+      now
+      + toMs(exitWait.whole_days, exitWait.hours)
+      + SWEEP_DAYS * 24 * 3600 * 1000
+      + 27 * 3600 * 1000;
 
       // Meta strip
       $("chipDate").textContent   = fmtDT(now);
