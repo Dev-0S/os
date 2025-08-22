@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ETH Queue Monitor — Dev-0S</title>
 <meta name="theme-color" content="#0b0c10" />
-<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 
 <style>
   :root{
@@ -75,11 +75,7 @@
     position:relative; min-height:64vh; display:grid; align-items:center; overflow:hidden;
     margin-top:100px; /* keep your meta+nav offset */
   }
-
-  /* remove the old image background */
   .hero::before{ content:none; }
-
-  /* keep the dark overlay, but ensure it's above the video */
   .hero::after{
     content:""; position:absolute; inset:0;
     background:
@@ -87,30 +83,22 @@
       linear-gradient(180deg, rgba(12,13,18,.15), rgba(12,13,18,.92) 60%, rgba(12,13,18,.96));
     z-index:1;
   }
-
-  /* video fills the hero */
   .hero .bg-video{
     position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
     transform:scale(1.02);
     filter:saturate(1.06) contrast(1.02);
     z-index:0; pointer-events:none;
   }
-
-  /* content sits above overlay */
   .hero-content{
     position:relative; z-index:2; padding:12vh 0;
     display:grid; grid-template-columns: minmax(280px, 1.2fr) minmax(260px, .8fr); gap:32px;
   }
-
   @media (max-width: 860px){
     .hero-content{ grid-template-columns:1fr; gap:18px; padding:10vh 0; }
   }
-
-  /* optional accessibility: respect reduced motion */
   @media (prefers-reduced-motion: reduce){
     .hero .bg-video{ display:none; }
   }
-
   .title{
       font-size: clamp(36px, 6.8vw, 76px);
       font-weight:900; letter-spacing:.4px; line-height:1.05; margin:0 0 8px;
@@ -139,7 +127,7 @@
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .note{ font-size:12px; color:var(--muted); margin-top:8px; }
 
-  /* ---------------- Slider (accented track & thumb) ---------------- */
+  /* ---------------- Slider ---------------- */
   input[type="range"]{
     -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:999px; outline:none;
     background: rgba(90,214,163,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
@@ -206,9 +194,9 @@
     <div class="brand">Dev<span class="dot">-</span>0S</div>
     <div class="navlinks">
       <a href="#overview">Overview</a>
-      <a href="#entry">Entry</a>
-      <a href="#exit">Exit</a>
+      <a href="#entry">Queue Details</a>
       <a href="#calc">Calculator</a>
+      <a href="#search">Search</a>
     </div>
     <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
   </div>
@@ -285,6 +273,20 @@
   </div>
 </section>
 
+<!-- VALIDATOR SEARCH -->
+<section id="search">
+  <div class="container">
+    <div class="card pad">
+      <h3>Validator Search</h3>
+      <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <input id="valIndex" type="number" placeholder="Enter validator index" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink);" />
+        <button id="fetchValidator" class="btn">Search</button>
+      </div>
+      <div id="validatorResult" class="kv" style="gap:6px 12px;"></div>
+    </div>
+  </div>
+</section>
+
 <!-- LOADER -->
 <div id="loader" class="loader hidden" aria-hidden="true">
   <div class="spinner"></div>
@@ -292,15 +294,27 @@
 </div>
 
 <script>
-(function(){
+(function () {
   "use strict";
 
-  /* --------- Queue logic (beaconcha.in) --------- */
+  /* ============================================================================
+   * CONFIG / CONSTANTS
+   * ========================================================================== */
+
   const API_URL = "https://beaconcha.in/api/v1/validators/queue";
+  const API_VAL = (idx) => `https://beaconcha.in/api/v1/validator/${idx}`;
+
   const SWEEP_DAYS = 9.4;
+  const GENESIS_UNIX = 1606824023;       // 2020-12-01 12:00:23 UTC
+  const SECONDS_PER_EPOCH = 32 * 12;     // 384 seconds
+  const FIRST_SWEEP = new Date(Date.UTC(2020, 11, 1, 12, 0, 23)); // align to genesis
+
+  /* ============================================================================
+   * DOM HELPERS & FORMATTING
+   * ========================================================================== */
 
   const $ = (id) => document.getElementById(id);
-  const fmtInt = (n)=> (n==null? "—" : Number(n).toLocaleString());
+  const fmtInt = (n) => (n == null ? "—" : Number(n).toLocaleString());
   const fmtDT = (ms) => {
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return "—";
@@ -311,23 +325,37 @@
     const min = String(d.getMinutes()).padStart(2, "0");
     return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
   };
-  const fmtDH = (d,h)=> `${d} days, ${h} hours`;
+  const fmtDH = (d, h) => `${d} days, ${h} hours`;
+
+  /* ============================================================================
+   * LOADER
+   * ========================================================================== */
 
   const loader = $("loader");
-  function showLoader(){ loader.classList.remove("hidden"); loader.setAttribute("aria-hidden","false"); }
-  function hideLoader(){ loader.classList.add("hidden"); loader.setAttribute("aria-hidden","true"); }
+  function showLoader() {
+    if (!loader) return;
+    loader.classList.remove("hidden");
+    loader.setAttribute("aria-hidden", "false");
+  }
+  function hideLoader() {
+    if (!loader) return;
+    loader.classList.add("hidden");
+    loader.setAttribute("aria-hidden", "true");
+  }
 
-  // API returns balances in gwei. Convert to whole ETH.
-  function gweiToEthInt(value){
+  /* ============================================================================
+   * HELPERS
+   * ========================================================================== */
+
+  function gweiToEthInt(value) {
     const n = Number(value);
     if (!Number.isFinite(n)) return 0;
     return Math.trunc(n / 1e9);
   }
 
-  // Wait calculator — expects ETH in queue
-  function ethQueueWait(ethAmount){
-    const epoch_wait = ethAmount / 256;               // 256 ETH per epoch (8 validators × 32 ETH)
-    const min_wait = epoch_wait * ((12 * 32) / 60);   // 6.4 minutes per epoch
+  function ethQueueWait(ethAmount) {
+    const epoch_wait = ethAmount / 256;
+    const min_wait = epoch_wait * ((12 * 32) / 60); // 6.4 minutes per epoch
     const hour_wait = min_wait / 60;
     const days_wait = hour_wait / 24;
     const whole_days = Math.trunc(days_wait);
@@ -335,24 +363,47 @@
     return { whole_days, hours };
   }
 
-  function toMs(days, hours){ return (days + hours/24) * 24 * 3600 * 1000; }
+  function toMs(days, hours) {
+    return (days + hours / 24) * 24 * 3600 * 1000;
+  }
 
-  async function refresh(){
-    $("refresh").disabled = true;
+  function epochToDate(epoch) {
+    const unix = GENESIS_UNIX + epoch * SECONDS_PER_EPOCH;
+    return new Date(unix * 1000);
+  }
+
+  function sweepAlign(dt) {
+    const intervalMs = SWEEP_DAYS * 24 * 3600 * 1000;
+    const delta = dt - FIRST_SWEEP;
+    if (delta < 0) return { prev: null, next: FIRST_SWEEP };
+    const intervals = Math.floor(delta / intervalMs);
+    const prev = new Date(FIRST_SWEEP.getTime() + intervals * intervalMs);
+    const next = new Date(prev.getTime() + intervalMs);
+    return { prev, next };
+  }
+
+  /* ============================================================================
+   * REFRESH MAIN CARDS
+   * ========================================================================== */
+
+  async function refresh() {
+    const refreshBtn = $("refresh");
+    if (refreshBtn) refreshBtn.disabled = true;
     showLoader();
-    try{
+
+    try {
       const res = await fetch(API_URL, { mode: "cors" });
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      if(!json || json.status !== 'OK' || !json.data) throw new Error('Unexpected payload');
+      if (!json || json.status !== "OK" || !json.data) throw new Error("Unexpected payload");
 
       const d = json.data;
       const now = Date.now();
 
-      // Entry (prefer balance from API; fallback)
+      // Entry
       const entryValidators = Number(d.beaconchain_entering) || 0;
       const entryEthFromApi = gweiToEthInt(d.beaconchain_entering_balance);
-      const entryEth = entryEthFromApi || (entryValidators * 32);
+      const entryEth = entryEthFromApi || entryValidators * 32;
       const entryWait = ethQueueWait(entryEth);
       const entryEtaMs = now + toMs(entryWait.whole_days, entryWait.hours);
 
@@ -361,58 +412,157 @@
       const exitValidators = Number(d.beaconchain_exiting) || Math.floor(exitEth / 32);
       const exitWait = ethQueueWait(exitEth);
       const withdrawEtaMs =
-      now
-      + toMs(exitWait.whole_days, exitWait.hours)
-      + SWEEP_DAYS * 24 * 3600 * 1000
-      + 27 * 3600 * 1000;
+        now +
+        toMs(exitWait.whole_days, exitWait.hours) +
+        SWEEP_DAYS * 24 * 3600 * 1000 +
+        27 * 3600 * 1000; // +27h protocol delay
 
       // Meta strip
-      $("chipDate").textContent   = fmtDT(now);
-      $("chipActive").textContent = fmtInt(d.validatorscount);
-      $("chipChurn").textContent  = "256";
+      const chipDate = $("chipDate");
+      const chipActive = $("chipActive");
+      const chipChurn = $("chipChurn");
+      if (chipDate) chipDate.textContent = fmtDT(now);
+      if (chipActive) chipActive.textContent = fmtInt(d.validatorscount);
+      if (chipChurn) chipChurn.textContent = "256";
 
-      // Details card
-      $("snapDate").textContent   = fmtDT(now);
-      $("active").textContent     = fmtInt(d.validatorscount);
-      $("statusSweep").textContent = `${SWEEP_DAYS} days`;
+      // Network details card
+      const snapDate = $("snapDate");
+      const active = $("active");
+      const statusSweep = $("statusSweep");
+      if (snapDate) snapDate.textContent = fmtDT(now);
+      if (active) active.textContent = fmtInt(d.validatorscount);
+      if (statusSweep) statusSweep.textContent = `${SWEEP_DAYS} days`;
 
       // Entry card
-      $("entryQ").textContent    = fmtInt(entryValidators);
-      $("entryEth").textContent  = `${fmtInt(entryEth)} ETH`;
-      $("entryWait").textContent = fmtDH(entryWait.whole_days, entryWait.hours);
-      $("entryEta").textContent  = fmtDT(entryEtaMs);
+      const entryQ = $("entryQ");
+      const entryEthEl = $("entryEth");
+      const entryWaitEl = $("entryWait");
+      const entryEta = $("entryEta");
+      if (entryQ) entryQ.textContent = fmtInt(entryValidators);
+      if (entryEthEl) entryEthEl.textContent = `${fmtInt(entryEth)} ETH`;
+      if (entryWaitEl) entryWaitEl.textContent = fmtDH(entryWait.whole_days, entryWait.hours);
+      if (entryEta) entryEta.textContent = fmtDT(entryEtaMs);
 
       // Exit card
-      $("exitQ").textContent     = fmtInt(exitValidators);
-      $("exitEth").textContent   = `${fmtInt(exitEth)} ETH`;
-      $("exitWait").textContent  = fmtDH(exitWait.whole_days, exitWait.hours);
-      $("withdrawEta").textContent = fmtDT(withdrawEtaMs);
-
-    }catch(e){
+      const exitQ = $("exitQ");
+      const exitEthEl = $("exitEth");
+      const exitWaitEl = $("exitWait");
+      const withdrawEta = $("withdrawEta");
+      if (exitQ) exitQ.textContent = fmtInt(exitValidators);
+      if (exitEthEl) exitEthEl.textContent = `${fmtInt(exitEth)} ETH`;
+      if (exitWaitEl) exitWaitEl.textContent = fmtDH(exitWait.whole_days, exitWait.hours);
+      if (withdrawEta) withdrawEta.textContent = fmtDT(withdrawEtaMs);
+    } catch (e) {
       console.error(e);
       const msg = e && e.message ? e.message : String(e);
-      alert("Failed to fetch queue data.\n\n" + msg + "\n\nIf this is a CORS issue, a small proxy or cached mirror will fix it.");
-    }finally{
-      setTimeout(()=>{ hideLoader(); $("refresh").disabled = false; }, 400);
+      alert(
+        "Failed to fetch queue data.\n\n" +
+          msg +
+          "\n\nIf this is a CORS issue, a small proxy or cached mirror will fix it."
+      );
+    } finally {
+      setTimeout(() => {
+        hideLoader();
+        const refreshBtn2 = $("refresh");
+        if (refreshBtn2) refreshBtn2.disabled = false;
+      }, 400);
     }
   }
 
-  // Slider updates
-  function updateEthSliderUI(){
-    const slider = document.getElementById("ethSlider");
+  /* ============================================================================
+   * SLIDER
+   * ========================================================================== */
+
+  function updateEthSliderUI() {
+    const slider = $("ethSlider");
     if (!slider) return;
     const ethVal = Number(slider.value) || 0;
-    $("ethSliderVal").textContent = fmtInt(ethVal);
     const wait = ethQueueWait(ethVal);
-    $("ethSliderHours").textContent = `${wait.whole_days} days, ${wait.hours} hours`;
+    const valEl = $("ethSliderVal");
+    const hrsEl = $("ethSliderHours");
+    if (valEl) valEl.textContent = fmtInt(ethVal);
+    if (hrsEl) hrsEl.textContent = `${wait.whole_days} days, ${wait.hours} hours`;
   }
-  const ethSliderEl = document.getElementById("ethSlider");
-  if (ethSliderEl){
+
+  const ethSliderEl = $("ethSlider");
+  if (ethSliderEl) {
     ethSliderEl.addEventListener("input", updateEthSliderUI);
     updateEthSliderUI();
   }
 
-  document.getElementById("refresh").addEventListener("click", refresh);
+  /* ============================================================================
+   * VALIDATOR SEARCH
+   * ========================================================================== */
+
+  async function fetchValidatorAndRender() {
+    const idxInput = $("valIndex");
+    const out = $("validatorResult");
+    const btn = $("fetchValidator");
+    if (!idxInput || !out) return;
+
+    const idx = String(idxInput.value || "").trim();
+    if (!idx) {
+      out.textContent = "Please enter a validator index.";
+      return;
+    }
+
+    // Show global loader & disable button during search
+    if (btn) btn.disabled = true;
+    showLoader();
+    out.innerHTML = "Loading…";
+
+    try {
+      const res = await fetch(API_VAL(idx), { mode: "cors" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json();
+      if (!payload || payload.status !== "OK" || !payload.data) {
+        out.textContent = "No data returned for that validator.";
+        return;
+      }
+
+      const d = payload.data;
+      const balEth = (Number(d.balance) || 0) / 1e9;
+      const effEth = (Number(d.effectivebalance) || 0) / 1e9;
+      const withdrawnEth = (Number(d.total_withdrawals) || 0) / 1e9;
+
+      const wdDt = epochToDate(Number(d.withdrawableepoch));
+      const { prev, next } = sweepAlign(wdDt);
+
+      out.innerHTML = `
+        <div class="k">Validator</div><div class="v mono">${fmtInt(d.validatorindex)}</div>
+        <div class="k">Status</div><div class="v mono">${d.status}</div>
+        <div class="k">Balance</div><div class="v mono">${balEth.toFixed(4)} ETH</div>
+        <div class="k">Effective Balance</div><div class="v mono">${effEth.toFixed(4)} ETH</div>
+        <div class="k">Total Withdrawn</div><div class="v mono">${withdrawnEth.toFixed(4)} ETH</div>
+        <div class="k">Withdrawable at</div><div class="v mono">${fmtDT(wdDt.getTime())}</div>
+        <div class="k">Previous sweep</div><div class="v mono">${prev ? fmtDT(prev.getTime()) : "—"}</div>
+        <div class="k">Next sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
+        <div class="k">✅ ETH available at sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
+      `;
+    } catch (err) {
+      console.error(err);
+      out.textContent = `Error fetching validator: ${err && err.message ? err.message : err}`;
+    } finally {
+      hideLoader();
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  const fetchBtn = $("fetchValidator");
+  if (fetchBtn) fetchBtn.addEventListener("click", fetchValidatorAndRender);
+  const idxField = $("valIndex");
+  if (idxField) {
+    idxField.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") fetchValidatorAndRender();
+    });
+  }
+
+  /* ============================================================================
+   * BOOTSTRAP
+   * ========================================================================== */
+
+  const refreshBtn = $("refresh");
+  if (refreshBtn) refreshBtn.addEventListener("click", refresh);
   refresh();
 })();
 </script>
