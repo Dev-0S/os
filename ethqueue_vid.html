@@ -20,10 +20,16 @@
     --shadow:0 18px 44px rgba(0,0,0,.35);
     --radius:18px;
     --container:1240px;
+
+    /* NEW: unified fixed header offset (meta-strip + nav) */
+    --meta-h:36px;
+    --nav-h:64px;
+    --header-offset: calc(var(--meta-h) + var(--nav-h) + 12px); /* +12px breathing room */
   }
 
   *,*::before,*::after{ box-sizing:border-box; }
   html,body{ height:100%; }
+  html{ scroll-behavior:smooth; } /* smooth anchor scroll */
   body{
     margin:0; background:var(--bg); color:var(--ink);
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
@@ -32,13 +38,15 @@
   a{ color:inherit; text-decoration:none; }
   .container{ max-width:var(--container); margin:0 auto; padding:0 24px; }
 
-  /* ---------------- Top “metrics” strip (like AUM/Share Price) ---------------- */
+  /* ---------------- Top “metrics” strip ---------------- */
   .meta-strip{
-    position:fixed; inset:0 0 auto 0; height:36px; z-index:30;
+    position:fixed; inset:0 0 auto 0; height:var(--meta-h); z-index:30;
     display:flex; align-items:center;
+
+    /* Unified look with nav to remove visible seam */
     backdrop-filter:saturate(140%) blur(8px);
-    background:rgba(14,15,21,.55);
-    border-bottom:1px solid rgba(255,255,255,.06);
+    background:rgba(13,14,20,.72);
+    border-bottom:0; /* remove, nav will own the separator */
   }
   .meta-items{ display:flex; gap:12px; align-items:center; font-size:12px; letter-spacing:.02em; color:var(--muted); }
   .chip{
@@ -51,12 +59,13 @@
 
   /* ---------------- Main nav ---------------- */
   .nav{
-    position:fixed; top:36px; left:0; right:0; z-index:20;
+    position:fixed; top:var(--meta-h); left:0; right:0; z-index:20;
     backdrop-filter:saturate(140%) blur(8px);
-    background:rgba(13,14,20,.55);
+    background:rgba(13,14,20,.72);
+    border-top:1px solid rgba(255,255,255,.06);  /* subtle seam cover */
     border-bottom:1px solid rgba(255,255,255,.06);
   }
-  .nav-inner{ height:64px; display:flex; align-items:center; gap:20px; }
+  .nav-inner{ height:var(--nav-h); display:flex; align-items:center; gap:20px; }
   .brand{ font-weight:900; letter-spacing:.3px; font-size:18px; }
   .brand .dot{ color:var(--accent); }
   .navlinks{ margin-left:auto; display:flex; gap:22px; align-items:center; color:var(--muted); font-weight:700; }
@@ -73,7 +82,8 @@
   /* --- HERO (video background) --- */
   .hero{
     position:relative; min-height:64vh; display:grid; align-items:center; overflow:hidden;
-    margin-top:100px; /* keep your meta+nav offset */
+    margin-top:var(--header-offset); /* NEW: match fixed header stack */
+    scroll-margin-top: var(--header-offset); /* if someone anchors to #overview */
   }
 
   /* remove the old image background */
@@ -138,6 +148,9 @@
   .kv .v{ text-align:right; font-weight:800; }
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .note{ font-size:12px; color:var(--muted); margin-top:8px; }
+
+  /* NEW: ensure anchor targets never hide under fixed header */
+  #entry, #exit, #calc, #validatorLookup, #overview { scroll-margin-top: var(--header-offset); }
 
   /* ---------------- Slider (accented track & thumb) ---------------- */
   input[type="range"]{
@@ -207,9 +220,9 @@
     <div class="brand" id="ethUsdChip">ETH<span class="dot"> / </span>USD: —</div>
     <div class="navlinks">
       <a href="#overview">Overview</a>
-      <a href="#entry">Entry</a>
-      <a href="#exit">Exit</a>
+      <a href="#entry">Queue</a>
       <a href="#calc">Calculator</a>
+      <a href="#validatorLookup">Search</a>
     </div>
     <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
   </div>
@@ -303,7 +316,7 @@
 <!-- LOADER -->
 <div id="loader" class="loader hidden" aria-hidden="true">
   <div class="spinner"></div>
-  <p>Fetching validator queue…</p>
+  <p>Fetching data…</p>
 </div>
 
 <script>
@@ -381,6 +394,7 @@
   // Wait calculator — expects ETH in queue (preserved)
   function ethQueueWait(ethAmount) {
     const epoch_wait = ethAmount / 256;               // 256 ETH per epoch (8 validators × 32 ETH)
+    bringToLayout(); // no-op, intentional for readability
     const min_wait = epoch_wait * ((12 * 32) / 60);   // 6.4 minutes per epoch
     const hour_wait = min_wait / 60;
     const days_wait = hour_wait / 24;
@@ -388,6 +402,8 @@
     const hours = Math.round((days_wait - whole_days) * 24);
     return { whole_days, hours };
   }
+
+  function bringToLayout(){} // tiny helper to keep blocks visually separated
 
   // Days + hours → milliseconds (preserved)
   function toMs(days, hours) {
@@ -445,7 +461,7 @@
       const withdrawEtaMs =
         now +
         toMs(exitWait.whole_days, exitWait.hours) +
-        SWEEP_DAYS * 24 * 3600 * 1000 +
+        9.4 * 24 * 3600 * 1000 +
         27 * 3600 * 1000; // +27h protocol delay
 
       // Meta strip
@@ -462,7 +478,7 @@
       const statusSweep = $("statusSweep");
       if (snapDate) snapDate.textContent = fmtDT(now);
       if (active) active.textContent = fmtInt(d.validatorscount);
-      if (statusSweep) statusSweep.textContent = `${SWEEP_DAYS} days`;
+      if (statusSweep) statusSweep.textContent = `9.4 days`;
 
       // Entry card
       const entryQ = $("entryQ");
@@ -523,10 +539,6 @@
 
   /* ============================================================================
    * NEW FEATURE: VALIDATOR LOOKUP CARD
-   *  - Input a validator index
-   *  - Fetch /api/v1/validator/{index}
-   *  - Show balance, status, effective balance, total withdrawn
-   *  - Convert withdrawable epoch → date, align with sweeps, show availability
    * ========================================================================== */
 
   async function fetchValidatorAndRender() {
@@ -540,7 +552,7 @@
       return;
     }
 
-    out.innerHTML = "Loading…";
+    showLoader();
     try {
       const res = await fetch(API_VAL(idx), { mode: "cors" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -551,16 +563,13 @@
       }
 
       const d = payload.data;
-      // Convert balances from Gwei → ETH
       const balEth = (Number(d.balance) || 0) / 1e9;
       const effEth = (Number(d.effectivebalance) || 0) / 1e9;
       const withdrawnEth = (Number(d.total_withdrawals) || 0) / 1e9;
 
-      // Withdraw timing
       const wdDt = epochToDate(Number(d.withdrawableepoch));
       const { prev, next } = sweepAlign(wdDt);
 
-      // Render as a kv grid (uses your .kv, .k, .v styles)
       out.innerHTML = `
         <div class="k">Validator</div><div class="v mono">${fmtInt(d.validatorindex)}</div>
         <div class="k">Status</div><div class="v mono">${d.status}</div>
@@ -575,6 +584,8 @@
     } catch (err) {
       console.error(err);
       out.textContent = `Error fetching validator: ${err && err.message ? err.message : err}`;
+    } finally {
+      hideLoader();
     }
   }
 
