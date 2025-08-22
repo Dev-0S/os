@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ETH Queue Monitor — Dev-0S</title>
 <meta name="theme-color" content="#0b0c10" />
-<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 
 <style>
   :root{
@@ -75,7 +75,11 @@
     position:relative; min-height:64vh; display:grid; align-items:center; overflow:hidden;
     margin-top:100px; /* keep your meta+nav offset */
   }
+
+  /* remove the old image background */
   .hero::before{ content:none; }
+
+  /* keep the dark overlay, but ensure it's above the video */
   .hero::after{
     content:""; position:absolute; inset:0;
     background:
@@ -83,22 +87,30 @@
       linear-gradient(180deg, rgba(12,13,18,.15), rgba(12,13,18,.92) 60%, rgba(12,13,18,.96));
     z-index:1;
   }
+
+  /* video fills the hero */
   .hero .bg-video{
     position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
     transform:scale(1.02);
     filter:saturate(1.06) contrast(1.02);
     z-index:0; pointer-events:none;
   }
+
+  /* content sits above overlay */
   .hero-content{
     position:relative; z-index:2; padding:12vh 0;
     display:grid; grid-template-columns: minmax(280px, 1.2fr) minmax(260px, .8fr); gap:32px;
   }
+
   @media (max-width: 860px){
     .hero-content{ grid-template-columns:1fr; gap:18px; padding:10vh 0; }
   }
+
+  /* optional accessibility: respect reduced motion */
   @media (prefers-reduced-motion: reduce){
     .hero .bg-video{ display:none; }
   }
+
   .title{
       font-size: clamp(36px, 6.8vw, 76px);
       font-weight:900; letter-spacing:.4px; line-height:1.05; margin:0 0 8px;
@@ -127,7 +139,7 @@
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .note{ font-size:12px; color:var(--muted); margin-top:8px; }
 
-  /* ---------------- Slider ---------------- */
+  /* ---------------- Slider (accented track & thumb) ---------------- */
   input[type="range"]{
     -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:999px; outline:none;
     background: rgba(90,214,163,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
@@ -192,11 +204,12 @@
 <nav class="nav">
   <div class="container nav-inner">
     <div class="brand">Dev<span class="dot">-</span>0S</div>
+    <div class="brand" id="ethUsdChip">ETH<span class="dot"> / </span>USD: —</div>
     <div class="navlinks">
       <a href="#overview">Overview</a>
-      <a href="#entry">Queue Details</a>
+      <a href="#entry">Entry</a>
+      <a href="#exit">Exit</a>
       <a href="#calc">Calculator</a>
-      <a href="#search">Search</a>
     </div>
     <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
   </div>
@@ -273,14 +286,14 @@
   </div>
 </section>
 
-<!-- VALIDATOR SEARCH -->
-<section id="search">
+<!-- NEW VALIDATOR LOOKUP -->
+<section id="validatorLookup">
   <div class="container">
     <div class="card pad">
-      <h3>Validator Search</h3>
+      <h3>Validator Lookup</h3>
       <div style="display:flex; gap:12px; margin-bottom:16px;">
         <input id="valIndex" type="number" placeholder="Enter validator index" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink);" />
-        <button id="fetchValidator" class="btn">Search</button>
+        <button id="fetchValidator" class="btn">Lookup</button>
       </div>
       <div id="validatorResult" class="kv" style="gap:6px 12px;"></div>
     </div>
@@ -301,20 +314,29 @@
    * CONFIG / CONSTANTS
    * ========================================================================== */
 
+  // Existing queue endpoint (preserved)
   const API_URL = "https://beaconcha.in/api/v1/validators/queue";
+
+  // NEW: Per-validator endpoint
   const API_VAL = (idx) => `https://beaconcha.in/api/v1/validator/${idx}`;
 
-  const SWEEP_DAYS = 9.4;
-  const GENESIS_UNIX = 1606824023;       // 2020-12-01 12:00:23 UTC
-  const SECONDS_PER_EPOCH = 32 * 12;     // 384 seconds
-  const FIRST_SWEEP = new Date(Date.UTC(2020, 11, 1, 12, 0, 23)); // align to genesis
+  // Sweep cadence and Ethereum beacon-chain timing constants
+  const SWEEP_DAYS = 9.4;                // your assumed sweep cadence (days)
+  const GENESIS_UNIX = 1606824023;       // 2020-12-01 12:00:23 UTC (mainnet)
+  const SECONDS_PER_EPOCH = 32 * 12;     // 384s per epoch
+  // Align sweeps to a reference time (using genesis by default)
+  const FIRST_SWEEP = new Date(Date.UTC(2020, 11, 1, 12, 0, 23)); // 2020-12-01 12:00:23Z
 
   /* ============================================================================
    * DOM HELPERS & FORMATTING
    * ========================================================================== */
 
   const $ = (id) => document.getElementById(id);
+
+  // Format an integer with thousands separators; preserve your "—" fallback
   const fmtInt = (n) => (n == null ? "—" : Number(n).toLocaleString());
+
+  // Your original DD/MM/YYYY HH:MM formatting (preserved)
   const fmtDT = (ms) => {
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return "—";
@@ -325,10 +347,12 @@
     const min = String(d.getMinutes()).padStart(2, "0");
     return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
   };
+
+  // "X days, Y hours" (preserved)
   const fmtDH = (d, h) => `${d} days, ${h} hours`;
 
   /* ============================================================================
-   * LOADER
+   * LOADER (preserved)
    * ========================================================================== */
 
   const loader = $("loader");
@@ -344,18 +368,20 @@
   }
 
   /* ============================================================================
-   * HELPERS
+   * UNITS / TIME HELPERS (preserved + extended)
    * ========================================================================== */
 
+  // API returns balances in gwei. Convert to whole ETH (truncate)
   function gweiToEthInt(value) {
     const n = Number(value);
     if (!Number.isFinite(n)) return 0;
     return Math.trunc(n / 1e9);
   }
 
+  // Wait calculator — expects ETH in queue (preserved)
   function ethQueueWait(ethAmount) {
-    const epoch_wait = ethAmount / 256;
-    const min_wait = epoch_wait * ((12 * 32) / 60); // 6.4 minutes per epoch
+    const epoch_wait = ethAmount / 256;               // 256 ETH per epoch (8 validators × 32 ETH)
+    const min_wait = epoch_wait * ((12 * 32) / 60);   // 6.4 minutes per epoch
     const hour_wait = min_wait / 60;
     const days_wait = hour_wait / 24;
     const whole_days = Math.trunc(days_wait);
@@ -363,19 +389,24 @@
     return { whole_days, hours };
   }
 
+  // Days + hours → milliseconds (preserved)
   function toMs(days, hours) {
     return (days + hours / 24) * 24 * 3600 * 1000;
   }
 
+  // NEW: Convert beacon epoch → Date (UTC)
   function epochToDate(epoch) {
     const unix = GENESIS_UNIX + epoch * SECONDS_PER_EPOCH;
     return new Date(unix * 1000);
   }
 
+  // NEW: Given a Date, find the previous & next sweep times (based on FIRST_SWEEP and SWEEP_DAYS)
   function sweepAlign(dt) {
     const intervalMs = SWEEP_DAYS * 24 * 3600 * 1000;
     const delta = dt - FIRST_SWEEP;
-    if (delta < 0) return { prev: null, next: FIRST_SWEEP };
+    if (delta < 0) {
+      return { prev: null, next: FIRST_SWEEP };
+    }
     const intervals = Math.floor(delta / intervalMs);
     const prev = new Date(FIRST_SWEEP.getTime() + intervals * intervalMs);
     const next = new Date(prev.getTime() + intervalMs);
@@ -383,7 +414,7 @@
   }
 
   /* ============================================================================
-   * REFRESH MAIN CARDS
+   * REFRESH: Fetch the queue snapshot and update the three main cards (preserved)
    * ========================================================================== */
 
   async function refresh() {
@@ -400,14 +431,14 @@
       const d = json.data;
       const now = Date.now();
 
-      // Entry
+      // Entry queue
       const entryValidators = Number(d.beaconchain_entering) || 0;
       const entryEthFromApi = gweiToEthInt(d.beaconchain_entering_balance);
       const entryEth = entryEthFromApi || entryValidators * 32;
       const entryWait = ethQueueWait(entryEth);
       const entryEtaMs = now + toMs(entryWait.whole_days, entryWait.hours);
 
-      // Exit
+      // Exit queue
       const exitEth = gweiToEthInt(d.beaconchain_exiting_balance);
       const exitValidators = Number(d.beaconchain_exiting) || Math.floor(exitEth / 32);
       const exitWait = ethQueueWait(exitEth);
@@ -470,7 +501,7 @@
   }
 
   /* ============================================================================
-   * SLIDER
+   * SLIDER: Exit Queue - Unstaking Impact (preserved)
    * ========================================================================== */
 
   function updateEthSliderUI() {
@@ -487,17 +518,20 @@
   const ethSliderEl = $("ethSlider");
   if (ethSliderEl) {
     ethSliderEl.addEventListener("input", updateEthSliderUI);
-    updateEthSliderUI();
+    updateEthSliderUI(); // initial paint
   }
 
   /* ============================================================================
-   * VALIDATOR SEARCH
+   * NEW FEATURE: VALIDATOR LOOKUP CARD
+   *  - Input a validator index
+   *  - Fetch /api/v1/validator/{index}
+   *  - Show balance, status, effective balance, total withdrawn
+   *  - Convert withdrawable epoch → date, align with sweeps, show availability
    * ========================================================================== */
 
   async function fetchValidatorAndRender() {
     const idxInput = $("valIndex");
     const out = $("validatorResult");
-    const btn = $("fetchValidator");
     if (!idxInput || !out) return;
 
     const idx = String(idxInput.value || "").trim();
@@ -506,11 +540,7 @@
       return;
     }
 
-    // Show global loader & disable button during search
-    if (btn) btn.disabled = true;
-    showLoader();
     out.innerHTML = "Loading…";
-
     try {
       const res = await fetch(API_VAL(idx), { mode: "cors" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -521,13 +551,16 @@
       }
 
       const d = payload.data;
+      // Convert balances from Gwei → ETH
       const balEth = (Number(d.balance) || 0) / 1e9;
       const effEth = (Number(d.effectivebalance) || 0) / 1e9;
       const withdrawnEth = (Number(d.total_withdrawals) || 0) / 1e9;
 
+      // Withdraw timing
       const wdDt = epochToDate(Number(d.withdrawableepoch));
       const { prev, next } = sweepAlign(wdDt);
 
+      // Render as a kv grid (uses your .kv, .k, .v styles)
       out.innerHTML = `
         <div class="k">Validator</div><div class="v mono">${fmtInt(d.validatorindex)}</div>
         <div class="k">Status</div><div class="v mono">${d.status}</div>
@@ -542,12 +575,10 @@
     } catch (err) {
       console.error(err);
       out.textContent = `Error fetching validator: ${err && err.message ? err.message : err}`;
-    } finally {
-      hideLoader();
-      if (btn) btn.disabled = false;
     }
   }
 
+  // Wire up lookup button + Enter-to-submit
   const fetchBtn = $("fetchValidator");
   if (fetchBtn) fetchBtn.addEventListener("click", fetchValidatorAndRender);
   const idxField = $("valIndex");
@@ -558,12 +589,46 @@
   }
 
   /* ============================================================================
-   * BOOTSTRAP
+   * BOOTSTRAP: Refresh the queue snapshot on load & on button click
    * ========================================================================== */
 
   const refreshBtn = $("refresh");
   if (refreshBtn) refreshBtn.addEventListener("click", refresh);
+
+  // Initial data fetch
   refresh();
+
+  // === ETH/USD price chip from Coinbase (spot) ===
+  const COINBASE_PRICE_URL = "https://api.coinbase.com/v2/prices/ETH-USD/spot";
+
+  async function updateEthUsdChip(){
+    try {
+      const res = await fetch(COINBASE_PRICE_URL, {
+        mode: "cors",
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+
+      const amount = Number(j?.data?.amount);
+      if (!Number.isFinite(amount)) return;
+
+      // Round to whole dollars and add thousands separators
+      const rounded = Math.round(amount).toLocaleString("en-US");
+
+      const chip = document.getElementById("ethUsdChip");
+      if (chip) {
+        chip.innerHTML = `ETH<span class="dot"> / </span>USD: $${rounded}`;
+      }
+    } catch (e) {
+      console.warn("Price fetch failed:", e);
+    }
+  }
+
+  // Initial fetch + refresh every 60s
+  updateEthUsdChip();
+  setInterval(updateEthUsdChip, 60_000);
+
 })();
 </script>
 </body>
