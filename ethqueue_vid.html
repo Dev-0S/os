@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ETH Queue Monitor — Dev-0S</title>
 <meta name="theme-color" content="#0b0c10" />
-<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 
 <style>
   :root{
@@ -197,6 +197,35 @@
     .hero::before{ background-attachment:scroll; }
     .navlinks{ display:none; } /* keep it minimal on mobile */
   }
+
+  .feature-blurb{ color:var(--muted); max-width:60ch; }
+  .feature-blurb .kicker{
+    display:inline-block; margin-bottom:10px; padding:4px 10px;
+    background:rgba(90,214,163,.10); color:var(--ink); border:1px solid rgba(90,214,163,.25);
+    border-radius:999px; font-weight:800; letter-spacing:.02em; font-size:12px;
+  }
+
+  .feature-pills{
+    list-style:none; padding:0; margin:10px 0 0;
+    display:grid; gap:10px 14px; grid-template-columns:repeat(2, minmax(220px,1fr));
+  }
+  .feature-pills li{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px; border-radius:12px;
+    background:linear-gradient(180deg, rgba(90,214,163,.09), rgba(90,214,163,.03));
+    border:1px solid rgba(90,214,163,.22);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  .feature-pills li::before{
+    content:"✓"; font-weight:900; color:var(--accent);
+    transform:translateY(1px);
+  }
+  .feature-pills li b{ color:var(--ink); }
+
+  @media (max-width:860px){
+    .feature-pills{ grid-template-columns:1fr; }
+  }
+
 </style>
 </head>
 <body>
@@ -238,10 +267,17 @@
     <div>
       <h1 class="title">Ethereum <br> Entry / Exit Queue Monitor</h1>
     </div>
-    <p class="subtitle">
-      Live snapshot from beaconcha.in’s <span class="mono">/validators/queue</span> API. Track entry and exit queue sizes,
-      estimated waits, and a withdraw-ready ETA that includes the post-exit sweep (fixed at 9.4 days).
-    </p>
+    <div class="subtitle feature-blurb">
+  <span class="kicker">What’s inside</span>
+  <ul class="feature-pills" role="list">
+    <li><b>Live queues</b>Entry & Exit</li>
+    <li><b>Withdraw-ready</b>ETA </li>
+    <li><b>Network details</b>Stats</li>
+    <li><b>ETH / USD</b> Spot Price</li>
+    <li><b>Exit impact</b> Slider</li>
+    <li><b>Validator</b> Search</li>
+  </ul>
+</div>
   </div>
 </header>
 
@@ -290,7 +326,7 @@
       <div class="grid grid-1" style="gap:12px;">
         <input id="ethSlider" type="range" min="1" max="1000000" step="1" value="32" />
         <div class="kv">
-          <div class="k">ETH</div><div class="v mono" id="ethSliderVal">32</div>
+          <div class="k">ETH Unstaked</div><div class="v mono" id="ethSliderVal">32</div>
           <div class="k">Estimated Queue Increase</div><div class="v mono" id="ethSliderHours">—</div>
         </div>
         <div class="note">Formula: <span class="mono">((ETH / 256) × 6.4) ÷ 60 ÷ 24  ->  ETH ÷ 57,600</span></div>
@@ -303,7 +339,7 @@
 <section id="validatorLookup">
   <div class="container">
     <div class="card pad">
-      <h3>Validator Lookup</h3>
+      <h3>Validator Search</h3>
       <div style="display:flex; gap:12px; margin-bottom:16px;">
         <input id="valIndex" type="number" placeholder="Enter validator index" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink);" />
         <button id="fetchValidator" class="btn">Lookup</button>
