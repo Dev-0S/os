@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>the_trading_calendar_v1</title>
+  <style>
+    :root{
+      --bg:#0b0c10; --surface:#0f1016; --ink:#e8ecf1; --muted:#98a2ad; --line:#242733;
+      --accent:#5ad6a3; --accent-2:#9af0ca; --shadow:0 18px 44px rgba(0,0,0,.35);
+      --radius:18px; --container:1240px;
+      --meta-h:36px;               /* ticker height */
+    }
+    *,*::before,*::after{ box-sizing:border-box; } html,body{ height:100%; }
+    html{ scroll-behavior:smooth; }
+    body{ margin:0; background:var(--bg); color:var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      /* Keep content clear of the fixed ticker */
+      padding-top: var(--meta-h);
+    }
+    a{ color:inherit; text-decoration:none; }
+    .container{ max-width:var(--container); margin:0 auto; padding:0 24px; }
+
+    /* -------- Prices banner (ticker) -------- */
+    .meta-strip{
+      position:fixed; inset:0 0 auto 0; height:var(--meta-h); z-index:30;
+      display:flex; align-items:center; overflow:hidden;
+      backdrop-filter:saturate(140%) blur(8px);
+      background:rgba(13,14,20,.92);
+      border-bottom:1px solid rgba(255,255,255,.06);
+      box-shadow:0 6px 18px rgba(0,0,0,.35);
+    }
+    .meta-items{ display:flex; gap:14px; align-items:center; font-size:12px; color:var(--muted); white-space:nowrap; width:100%; }
+    .marquee{ display:inline-flex; gap:12px; align-items:center; will-change:transform; animation:marquee 42s linear infinite; }
+    .meta-strip:hover .marquee{ animation-play-state:paused; }
+    @keyframes marquee{ from{ transform:translateX(0);} to{ transform:translateX(-50%);} }
+    .chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border:1px solid rgba(255,255,255,.08);
+      border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)); font-variant-numeric:tabular-nums; }
+    .chip b{ font-weight:800; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    /* -------- Nav (title left, day controls right) -------- */
+    .nav{
+      position:sticky; top:var(--meta-h); z-index:20;
+      backdrop-filter:saturate(140%) blur(8px);
+      background:rgba(13,14,20,.86);
+      border-bottom:1px solid rgba(255,255,255,.06);
+      box-shadow:0 10px 28px rgba(0,0,0,.28);
+    }
+    .nav-inner{ padding:16px 0; display:flex; align-items:center; gap:18px; }
+    .titleRow{ display:flex; align-items:center; gap:8px; font-weight:900; letter-spacing:.3px; font-size:18px; color:var(--ink); }
+    .dot{ color:var(--accent); }
+    .spacer{ flex:1; }
+    .daynav{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .btn{ display:inline-flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; user-select:none;
+      background:var(--accent); color:#062c1f; border:0; border-radius:16px; padding:10px 14px; font-weight:800; height:40px;
+      transition: transform .15s ease, box-shadow .25s ease, filter .25s ease; }
+    .btn:hover{ transform: translateY(-1px); box-shadow:0 14px 28px rgba(90,214,163,.28); filter:brightness(1.05); }
+    .btn:disabled{ opacity:.65; cursor:not-allowed; }
+    .ghost{ background:transparent; color:var(--ink); border:1px solid var(--line); }
+    .datebox{ display:flex; align-items:center; gap:12px; padding:8px 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); }
+    .datebox strong{ font-variant-numeric:tabular-nums; }
+    .datebox input[type="date"]{ background:transparent; color:var(--ink); border:0; outline:none; font-weight:700; }
+
+    /* -------- Main -------- */
+    main{ margin-top: 12px; }
+    header.page{ padding:40px 0 18px; }
+    header.page .bigday{ font-weight:1000; letter-spacing:.4px; line-height:.92; margin:0 0 10px; font-size: clamp(36px, 9vw, 96px); }
+    header.page .header-row{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    header.page #pageTitle{ margin:0; font-size:30px; font-weight:900; letter-spacing:.3px; }
+    .note{ margin-top:10px; font-size:12px; color:var(--muted); }
+
+    section{ padding: 12px 0 72px; }
+    .grid{ display:grid; gap:24px; }
+    .grid-1{ grid-template-columns: 1fr; }
+    @media (min-width: 960px){ .grid-1{ grid-template-columns: 1fr 1fr; } }
+
+    .card{ background:var(--surface); border:1px solid var(--line); border-radius:calc(var(--radius) + 2px); box-shadow:var(--shadow); padding:28px 30px; }
+    .row{ display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .left{ display:grid; gap:10px; }
+    .badge{ display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; font-size:12px; color:#052e21; background:var(--accent-2); font-weight:900; }
+    .title{ font-size:22px; font-weight:800; letter-spacing:.2px; }
+    .muted{ color:var(--muted); }
+    .live{ text-align:right; min-width:240px; }
+    .live .symbol{ font-weight:900; color:var(--accent-2); }
+    .live .price{ font-size:30px; font-weight:900; font-variant-numeric: tabular-nums; padding:12px 14px;
+      background:linear-gradient(90deg, rgba(90,214,163,.18), rgba(90,214,163,.08)); border-radius:12px; border:1px solid rgba(90,214,163,.25); display:inline-block; }
+    .flash{ animation:flash 800ms ease; } @keyframes flash{ from{ background: rgba(90,214,163,.35); } to{ background: linear-gradient(90deg, rgba(90,214,163,.18), rgba(90,214,163,.08)); } }
+    .empty{ padding:26px; border:1px dashed var(--line); border-radius:var(--radius); color:var(--muted); background: rgba(255,255,255,.02); margin-top:6px; }
+
+    /* Day-change animation */
+    #cards{ transition: opacity .24s ease, transform .24s ease; }
+    #cards.out{ opacity:0; transform:translateY(10px); }
+    #cards.in{ opacity:1; transform:translateY(0); }
+    .fade-swap{ animation: fadeSwap .38s ease; }
+    @keyframes fadeSwap{ 0%{opacity:0; transform:translateY(6px);} 100%{opacity:1; transform:translateY(0);} }
+
+    @media (max-width: 860px){
+      .live{ min-width:200px; }
+      header.page #pageTitle{ font-size:24px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Prices Banner -->
+  <div class="meta-strip" role="region" aria-label="Crypto prices ticker">
+    <div class="container">
+      <div class="meta-items">
+        <div id="marqueeA" class="marquee"></div>
+        <div id="marqueeB" class="marquee" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nav: title + day controls -->
+  <nav class="nav" role="navigation" aria-label="Day navigation">
+    <div class="container nav-inner">
+      <div class="titleRow"><span class="dot">●</span> Trading Calendar — v1</div>
+      <div class="spacer"></div>
+      <div class="daynav">
+        <button id="prevBtn" class="btn ghost" title="Previous day" aria-label="Previous day">◀</button>
+        <div class="datebox">
+          <strong id="dayLabel">—</strong>
+          <input id="datePicker" type="date" />
+        </div>
+        <button id="nextBtn" class="btn ghost" title="Next day" aria-label="Next day">▶</button>
+        <button id="todayBtn" class="btn" title="Jump to today">Today</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <!-- BIG DAY -->
+    <header class="page">
+      <h2 class="bigday" id="currentDayBig">—</h2>
+      <div class="header-row">
+        <h1 id="pageTitle">Trading Calendar</h1>
+      </div>
+      <p class="note">Times auto-convert to your local timezone. Weekly <b>Initial Jobless Claims</b> included (Thu 8:30am ET, with DOL holiday exceptions). v1 focuses on U.S. prints; we can add UK/Euro regions or wire an admin JSON for edits.</p>
+    </header>
+
+    <!-- Cards -->
+    <section>
+      <div id="cards" class="grid grid-1 in"></div>
+      <div id="emptyState" class="empty" style="display:none;">No major releases on this date.</div>
+    </section>
+
+    <footer>Live prices via Coinbase public APIs. Economic release dates from official U.S. sources.</footer>
+  </main>
+
+  <script>
+    /* CONFIG */
+    const TOP_PRODUCTS = ['BTC-USD','ETH-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD','DOT-USD','LTC-USD','BCH-USD','LINK-USD','MATIC-USD','AVAX-USD','XLM-USD','ETC-USD','UNI-USD'];
+    const etOffsetISO = d => ((d.getMonth()+1)<=3||(d.getMonth()+1)>=11)?'-05:00':'-04:00';
+
+    /* Static events (Sep–Dec 2025) + weekly claims */
+    const EVENTS_STATIC = [
+      { id:'NFP-2025-09', name:'Employment Situation (Nonfarm Payrolls, Unemployment Rate)', cat:'Labor', source:'BLS', datetime:'2025-09-05T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'CPI-2025-09', name:'Consumer Price Index (CPI)', cat:'Inflation', source:'BLS', datetime:'2025-09-11T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'PPI-2025-09', name:'Producer Price Index (PPI)', cat:'Inflation', source:'BLS', datetime:'2025-09-10T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'ISM-MFG-2025-09', name:'ISM Manufacturing PMI', cat:'PMI', source:'ISM', datetime:'2025-09-02T10:00:00-04:00', symbol:'ETH-USD' },
+      { id:'ISM-SRV-2025-09', name:'ISM Services PMI', cat:'PMI', source:'ISM', datetime:'2025-09-04T10:00:00-04:00', symbol:'ETH-USD' },
+      { id:'PCE-2025-09', name:'Personal Income & Outlays (incl. PCE Price Index)', cat:'Spending/Inflation', source:'BEA', datetime:'2025-09-26T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'NFP-2025-10', name:'Employment Situation (Nonfarm Payrolls, Unemployment Rate)', cat:'Labor', source:'BLS', datetime:'2025-10-03T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'CPI-2025-10', name:'Consumer Price Index (CPI)', cat:'Inflation', source:'BLS', datetime:'2025-10-15T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'PPI-2025-10', name:'Producer Price Index (PPI)', cat:'Inflation', source:'BLS', datetime:'2025-10-16T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'ISM-MFG-2025-10', name:'ISM Manufacturing PMI', cat:'PMI', source:'ISM', datetime:'2025-10-01T10:00:00-04:00', symbol:'ETH-USD' },
+      { id:'ISM-SRV-2025-10', name:'ISM Services PMI', cat:'PMI', source:'ISM', datetime:'2025-10-03T10:00:00-04:00', symbol:'ETH-USD' },
+      { id:'GDP-ADV-2025Q3', name:'Gross Domestic Product (Q3, Advance)', cat:'Growth', source:'BEA', datetime:'2025-10-30T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'PCE-2025-10', name:'Personal Income & Outlays (incl. PCE Price Index)', cat:'Spending/Inflation', source:'BEA', datetime:'2025-10-31T08:30:00-04:00', symbol:'BTC-USD' },
+      { id:'NFP-2025-11', name:'Employment Situation (Nonfarm Payrolls, Unemployment Rate)', cat:'Labor', source:'BLS', datetime:'2025-11-07T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'CPI-2025-11', name:'Consumer Price Index (CPI)', cat:'Inflation', source:'BLS', datetime:'2025-11-13T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'PPI-2025-11', name:'Producer Price Index (PPI)', cat:'Inflation', source:'BLS', datetime:'2025-11-14T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'ISM-MFG-2025-11', name:'ISM Manufacturing PMI', cat:'PMI', source:'ISM', datetime:'2025-11-03T10:00:00-05:00', symbol:'ETH-USD' },
+      { id:'ISM-SRV-2025-11', name:'ISM Services PMI', cat:'PMI', source:'ISM', datetime:'2025-11-05T10:00:00-05:00', symbol:'ETH-USD' },
+      { id:'GDP-2ND-2025Q3', name:'Gross Domestic Product (Q3, Second)', cat:'Growth', source:'BEA', datetime:'2025-11-26T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'PCE-2025-11', name:'Personal Income & Outlays (incl. PCE Price Index)', cat:'Spending/Inflation', source:'BEA', datetime:'2025-11-26T10:00:00-05:00', symbol:'BTC-USD' },
+      { id:'NFP-2025-12', name:'Employment Situation (Nonfarm Payrolls, Unemployment Rate)', cat:'Labor', source:'BLS', datetime:'2025-12-05T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'CPI-2025-12', name:'Consumer Price Index (CPI)', cat:'Inflation', source:'BLS', datetime:'2025-12-10T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'PPI-2025-12', name:'Producer Price Index (PPI)', cat:'Inflation', source:'BLS', datetime:'2025-12-11T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'ISM-MFG-2025-12', name:'ISM Manufacturing PMI', cat:'PMI', source:'ISM', datetime:'2025-12-01T10:00:00-05:00', symbol:'ETH-USD' },
+      { id:'ISM-SRV-2025-12', name:'ISM Services PMI', cat:'PMI', source:'ISM', datetime:'2025-12-03T10:00:00-05:00', symbol:'ETH-USD' },
+      { id:'GDP-3RD-2025Q3', name:'Gross Domestic Product (Q3, Third)', cat:'Growth', source:'BEA', datetime:'2025-12-19T08:30:00-05:00', symbol:'BTC-USD' },
+      { id:'PCE-2025-12', name:'Personal Income & Outlays (incl. PCE Price Index)', cat:'Spending/Inflation', source:'BEA', datetime:'2025-12-19T10:00:00-05:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-09-P', name:'Univ. of Michigan Consumer Sentiment (Prelim)', cat:'Sentiment', source:'UMich', datetime:'2025-09-12T10:00:00-04:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-09-F', name:'Univ. of Michigan Consumer Sentiment (Final)',  cat:'Sentiment', source:'UMich', datetime:'2025-09-26T10:00:00-04:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-10-P', name:'Univ. of Michigan Consumer Sentiment (Prelim)', cat:'Sentiment', source:'UMich', datetime:'2025-10-10T10:00:00-04:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-10-F', name:'Univ. of Michigan Consumer Sentiment (Final)',  cat:'Sentiment', source:'UMich', datetime:'2025-10-24T10:00:00-04:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-11-P', name:'Univ. of Michigan Consumer Sentiment (Prelim)', cat:'Sentiment', source:'UMich', datetime:'2025-11-07T10:00:00-05:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-11-F', name:'Univ. of Michigan Consumer Sentiment (Final)',  cat:'Sentiment', source:'UMich', datetime:'2025-11-21T10:00:00-05:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-12-P', name:'Univ. of Michigan Consumer Sentiment (Prelim)', cat:'Sentiment', source:'UMich', datetime:'2025-12-05T10:00:00-05:00', symbol:'BTC-USD' },
+      { id:'UMICH-2025-12-F', name:'Univ. of Michigan Consumer Sentiment (Final)',  cat:'Sentiment', source:'UMich', datetime:'2025-12-19T10:00:00-05:00', symbol:'BTC-USD' },
+      { id:'FOMC-2025-09', name:'FOMC Rate Decision (Statement)', cat:'Central Bank', source:'Federal Reserve', datetime:'2025-09-17T14:00:00-04:00', symbol:'BTC-USD' },
+      { id:'FOMC-2025-10', name:'FOMC Rate Decision (Statement)', cat:'Central Bank', source:'Federal Reserve', datetime:'2025-10-29T14:00:00-04:00', symbol:'BTC-USD' },
+      { id:'FOMC-2025-12', name:'FOMC Rate Decision (Statement)', cat:'Central Bank', source:'Federal Reserve', datetime:'2025-12-10T14:00:00-05:00', symbol:'BTC-USD' }
+    ];
+    function genWeeklyClaims(year=2025){
+      const exceptions = ['2025-01-08','2025-06-18','2025-11-26','2025-12-24'];
+      const releases = new Set();
+      const d0 = new Date(Date.UTC(year,0,1)), d1 = new Date(Date.UTC(year,11,31));
+      for(let d=new Date(d0); d<=d1; d.setUTCDate(d.getUTCDate()+1)){ if(d.getUTCDay()===4){ releases.add(d.toISOString().slice(0,10)); } }
+      exceptions.forEach(wed => { releases.add(wed); const t=new Date(wed+"T00:00:00Z"); t.setUTCDate(t.getUTCDate()+1); releases.delete(t.toISOString().slice(0,10)); });
+      const events = [];
+      for(const iso of Array.from(releases).sort()){
+        const d=new Date(iso+"T00:00:00Z"); const off=etOffsetISO(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        events.push({ id:`CLAIMS-${iso}`, name:'Initial Jobless Claims', cat:'Labor (Weekly)', source:'DOL/ETA', datetime:`${iso}T08:30:00${off}`, symbol:'BTC-USD' });
+      }
+      return events;
+    }
+    const EVENTS = [...EVENTS_STATIC, ...genWeeklyClaims(2025)];
+
+    const SOURCE_URL = {
+      'BLS':'https://www.bls.gov/schedule/','BEA':'https://www.bea.gov/news/schedule',
+      'ISM':'https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/',
+      'UMich':'https://data.sca.isr.umich.edu/reports.php?year=2025',
+      'Federal Reserve':'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+      'DOL/ETA':'https://oui.doleta.gov/unemploy/claims_arch.asp'
+    };
+
+    /* UTIL */
+    const $ = (s,c=document)=>c.querySelector(s);
+    const fmtMoney = n => (n==null||isNaN(n))?'—':(Number(n)>=1000?Number(n).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}):Number(n).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2}));
+    const isSameLocalDay = (a,b)=> a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+    const toLocalTimeLabel = iso => { const d=new Date(iso); return { day:d.toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'}), time:d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}) }; }
+    const ymd = d => [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+
+    /* STATE + RENDER */
+    let current = new Date();
+
+    function setDate(newDate){
+      const cards = document.getElementById('cards');
+      cards.classList.remove('in'); cards.classList.add('out');
+      setTimeout(() => { current = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate()); render(); cards.classList.remove('out'); cards.classList.add('in'); }, 160);
+    }
+
+    function render(){
+      const cards = $('#cards'); cards.innerHTML='';
+      const fullLabel = current.toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      const dayOnly   = current.toLocaleDateString(undefined,{weekday:'long'});
+      $('#currentDayBig').textContent = dayOnly;
+
+      // sync controls
+      $('#dayLabel').textContent = fullLabel; $('#datePicker').value = ymd(current);
+
+      const todays = EVENTS.filter(e => isSameLocalDay(new Date(e.datetime), current))
+                           .sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
+      $('#emptyState').style.display = todays.length? 'none':'block';
+
+      for(const e of todays){
+        const { time } = toLocalTimeLabel(e.datetime);
+        const el = document.createElement('div'); el.className='card';
+        el.innerHTML = `
+          <div class="row">
+            <div class="left">
+              <span class="badge">${e.cat}</span>
+              <div class="title">${e.name}</div>
+              <div class="muted">${time} · local time</div>
+              <div class="muted">Source: <a href="${SOURCE_URL[e.source]||'#'}" target="_blank" rel="noreferrer noopener">${e.source}</a></div>
+            </div>
+            <div class="live">
+              <div class="symbol">${e.symbol}</div>
+              <div class="price" id="p-${e.symbol.replace(/[^A-Z]/g,'')}">—</div>
+            </div>
+          </div>`;
+        cards.appendChild(el);
+      }
+    }
+
+    // Wire controls
+    function hookControls(){
+      const prev=$('#prevBtn'), next=$('#nextBtn'), today=$('#todayBtn'), pick=$('#datePicker');
+      if(prev)  prev.addEventListener('click',()=>{ const d=new Date(current); d.setDate(d.getDate()-1); setDate(d); });
+      if(next)  next.addEventListener('click',()=>{ const d=new Date(current); d.setDate(d.getDate()+1); setDate(d); });
+      if(today) today.addEventListener('click',()=> setDate(new Date()));
+      if(pick)  pick.addEventListener('change',e=>{ if(e.target.value){ const [Y,M,D]=e.target.value.split('-').map(Number); setDate(new Date(Y,M-1,D)); }});
+    }
+    hookControls();
+    render();
+
+    /* PRICES (Coinbase WS + REST fallback) */
+    const ALL_PRODUCTS = Array.from(new Set([...TOP_PRODUCTS, ...EVENTS.map(e=>e.symbol)]));
+    const priceMap = new Map();
+    function buildMarquee(){
+      const line=[...ALL_PRODUCTS,...ALL_PRODUCTS].map(sym=>`<span class="chip"><b>${sym}</b><span class="mono">${fmtMoney(priceMap.get(sym))}</span></span>`).join('');
+      document.getElementById('marqueeA').innerHTML=line; document.getElementById('marqueeB').innerHTML=line;
+    }
+    function setPrice(sym, price){
+      const prev=priceMap.get(sym); priceMap.set(sym,price);
+      const el=document.querySelector(`#p-${sym.replace(/[^A-Z]/g,'')}`);
+      if(el){ if(prev && Number(prev)!==Number(price)){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+        el.textContent = fmtMoney(price); }
+    }
+    let ws, wsTicker;
+    function startWS(){
+      try{
+        ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+        ws.onopen = ()=> ws.send(JSON.stringify({type:'subscribe', product_ids:ALL_PRODUCTS, channels:['ticker']}));
+        ws.onmessage = (ev)=>{ try{ const m=JSON.parse(ev.data); if(m.type==='ticker'&&m.product_id&&m.price){ setPrice(m.product_id, Number(m.price)); } }catch{} };
+        ws.onclose = ()=>{ clearInterval(wsTicker); startREST(); };
+        ws.onerror = ()=>{ clearInterval(wsTicker); startREST(); };
+      }catch{ startREST(); }
+      buildMarquee(); wsTicker=setInterval(buildMarquee, 2500);
+    }
+    let restTimer;
+    async function fetchSpot(sym){ try{ const r=await fetch(`https://api.coinbase.com/v2/prices/${sym}/spot`); const j=await r.json(); const a=j?.data?.amount?Number(j.data.amount):undefined; if(!isNaN(a)) setPrice(sym,a); }catch{} }
+    function startREST(){ if(restTimer) return; for(const s of ALL_PRODUCTS) fetchSpot(s); restTimer=setInterval(()=>{ for(const s of ALL_PRODUCTS) fetchSpot(s); buildMarquee(); }, 15000); }
+    startWS();
+  </script>
+</body>
+</html>
