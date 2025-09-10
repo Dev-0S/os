@@ -146,6 +146,7 @@
   .kv{ display:grid; grid-template-columns: auto 1fr; gap:8px 12px; align-items:center; }
   .kv .k{ color:var(--muted); }
   .kv .v{ text-align:right; font-weight:800; }
+  .kv .full{ grid-column:1 / -1; } /* NEW: full-width row inside kv grid */
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .note{ font-size:12px; color:var(--muted); margin-top:8px; }
 
@@ -172,6 +173,33 @@
   input[type="range"]:focus-visible::-webkit-slider-thumb{ filter:brightness(1.02); transform:scale(1.02); }
   input[type="range"]:hover::-moz-range-thumb,
   input[type="range"]:focus-visible::-moz-range-thumb{ filter:brightness(1.02); transform:scale(1.02); }
+
+  /* ---------------- Inputs (match existing search input look) ---------------- */
+  .text-input{
+    padding:8px; border-radius:8px; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink); font:inherit;
+  }
+
+  /* ---------------- Impact control row ---------------- */
+  .impact-row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .impact-row .text-input{ width:140px; }
+  .impact-hint{ margin:2px 0 0; }
+
+  /* ---------------- Validator timeline ---------------- */
+  .validator-timeline{ position:relative; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding-top:.75rem; }
+  .validator-timeline .vt-line{ position:absolute; left:4px; right:4px; top:14px; height:2px; background: var(--line); }
+  .validator-timeline .vt-item{ text-align:center; padding:0 .25rem; }
+  .validator-timeline .vt-dot{
+    width:10px; height:10px; border-radius:50%; margin:0 auto .25rem;
+    background: rgba(255,255,255,.18); border:2px solid var(--surface);
+    box-shadow:0 0 0 2px var(--line); position:relative; top:-6px;
+  }
+  .validator-timeline .vt-item.reached .vt-dot{ background: var(--accent); }
+  .validator-timeline .vt-label{ font-size:.75rem; color:var(--muted); line-height:1.2; }
+  .validator-timeline .vt-time{ font-size:.75rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width:520px){
+    .validator-timeline .vt-time{ white-space:normal; }
+  }
 
   /* ---------------- Loader ---------------- */
   .loader.hidden{ display:none; }
@@ -270,11 +298,11 @@
     <div class="subtitle feature-blurb">
   <span class="kicker">Features</span>
   <ul class="feature-pills" role="list">
-    <li><b>Live Queues</b>Entry & Exit</li>
+    <li><b>Live queues</b>Entry & Exit</li>
     <li><b>Withdraw-Ready</b>ETA </li>
     <li><b>Network Details</b>Stats</li>
     <li><b>ETH / USD</b> Spot Price</li>
-    <li><b>Exit Impact</b> Slider</li>
+    <li><b>Exit impact</b> Slider</li>
     <li><b>Validator</b> Search</li>
   </ul>
 </div>
@@ -322,13 +350,33 @@
 <section id="calc">
   <div class="container">
     <div class="card pad">
-      <h3>Exit Queue - Unstaking Impact</h3>
+      <h3 id="impactHeading">Exit Queue - Unstaking Impact</h3>
       <div class="grid grid-1" style="gap:12px;">
-        <input id="ethSlider" type="range" min="1" max="1000000" step="1" value="32" />
-        <div class="kv">
-          <div class="k">ETH Unstaked</div><div class="v mono" id="ethSliderVal">32</div>
-          <div class="k">Estimated Queue Increase</div><div class="v mono" id="ethSliderHours">—</div>
+
+        <!-- Slider stays on its own row -->
+        <input id="ethSlider" type="range" min="1" max="1000000" step="1" value="32" aria-labelledby="impactHeading" />
+
+        <!-- Everything else lives inside the kv block -->
+        <div class="kv" style="gap:8px 12px;">
+          <div class="k" id="ethUnstakedLabel">ETH Unstaked</div>
+          <div class="v">
+            <input
+              id="ethNumber"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9,]*"
+              placeholder="e.g. 12,500"
+              class="text-input mono"
+              aria-labelledby="ethUnstakedLabel"
+              style="width:160px; text-align:right;"
+            />
+            <div class="note" id="impactHint" hidden>Value adjusted to allowed range.</div>
+          </div>
+
+          <div class="k">Estimated Queue Increase</div>
+          <div class="v mono" id="ethSliderHours">—</div>
         </div>
+
         <div class="note">Formula: <span class="mono">((ETH / 256) × 6.4) ÷ 60 ÷ 24  ->  ETH ÷ 57,600</span></div>
       </div>
     </div>
@@ -342,7 +390,7 @@
       <h3>Validator Search</h3>
       <div style="display:flex; gap:12px; margin-bottom:16px;">
         <input id="valIndex" type="number" placeholder="Enter validator index" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink);" />
-        <button id="fetchValidator" class="btn">Search</button>
+        <button id="fetchValidator" class="btn">Lookup</button>
       </div>
       <div id="validatorResult" class="kv" style="gap:6px 12px;"></div>
     </div>
@@ -465,6 +513,18 @@
     return { prev, next };
   }
 
+  // NEW: relative time strings for tooltips
+  function relativeTime(date) {
+    const diff = date.getTime() - Date.now();
+    const abs = Math.abs(diff);
+    const mins = Math.round(abs / 60000);
+    if (mins < 60) return diff >= 0 ? `in ${mins} min` : `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 48) return diff >= 0 ? `in ${hrs} h` : `${hrs} h ago`;
+    const days = Math.round(hrs / 24);
+    return diff >= 0 ? `in ${days} d` : `${days} d ago`;
+  }
+
   /* ============================================================================
    * REFRESH: Fetch the queue snapshot and update the three main cards (preserved)
    * ========================================================================== */
@@ -552,30 +612,147 @@
     }
   }
 
-  /* ============================================================================
-   * SLIDER: Exit Queue - Unstaking Impact (preserved)
-   * ========================================================================== */
+/* ============================================================================
+ * SLIDER + NUMBER: Exit Queue - Unstaking Impact (inside kv row)
+ * ========================================================================== */
 
-  function updateEthSliderUI() {
-    const slider = $("ethSlider");
-    if (!slider) return;
-    const ethVal = Number(slider.value) || 0;
-    const wait = ethQueueWait(ethVal);
-    const valEl = $("ethSliderVal");
-    const hrsEl = $("ethSliderHours");
-    if (valEl) valEl.textContent = fmtInt(ethVal);
-    if (hrsEl) hrsEl.textContent = `${wait.whole_days} days, ${wait.hours} hours`;
+function callDownstreamImpact(value){
+  updateEthImpactUI(value);
+  document.dispatchEvent(new CustomEvent('unstake:impactChanged', { detail: { value } }));
+}
+
+function updateEthImpactUI(currentEthVal) {
+  const hrsEl = document.getElementById("ethSliderHours");
+  const wait = ethQueueWait(currentEthVal);
+  if (hrsEl) hrsEl.textContent = `${wait.whole_days} days, ${wait.hours} hours`;
+}
+
+const ethSliderEl = document.getElementById("ethSlider");
+const ethNumberEl = document.getElementById("ethNumber");
+const impactHint  = document.getElementById("impactHint");
+
+function clampToRange(v, min, max){ return Math.min(max, Math.max(min, v)); }
+function formatInt(n){ return Number(n).toLocaleString("en-US"); }
+function parseIntFromInput(str){
+  const cleaned = String(str || "").replace(/,/g, "").replace(/[^\d]/g, "");
+  if (cleaned === "") return NaN;
+  return parseInt(cleaned, 10);
+}
+
+function syncFromSlider(){
+  if (!ethSliderEl || !ethNumberEl) return;
+  const v = parseInt(ethSliderEl.value, 10) || 0;
+  ethNumberEl.value = formatInt(v);         // show commas
+  if (impactHint) impactHint.hidden = true;
+  callDownstreamImpact(v);
+}
+
+function syncFromNumber({ clampOnBlur = false } = {}){
+  if (!ethSliderEl || !ethNumberEl) return;
+
+  const min = parseInt(ethSliderEl.min, 10);
+  const max = parseInt(ethSliderEl.max, 10);
+
+  // parse user's entry (allow digits/commas)
+  const rawNum = parseIntFromInput(ethNumberEl.value);
+  if (Number.isNaN(rawNum)) {
+    // empty/invalid in-progress entry; don't update slider or UI yet
+    return;
   }
 
-  const ethSliderEl = $("ethSlider");
-  if (ethSliderEl) {
-    ethSliderEl.addEventListener("input", updateEthSliderUI);
-    updateEthSliderUI(); // initial paint
+  // clamp only for the slider (so calculations stay valid)
+  const clamped = clampToRange(rawNum, min, max);
+  ethSliderEl.value = String(clamped);
+
+  // live formatting while typing (no decimals)
+  if (!clampOnBlur) {
+    ethNumberEl.value = formatInt(rawNum);
+    if (impactHint) impactHint.hidden = true;
+  } else {
+    // on blur/change, enforce clamp and show hint if we had to change it
+    const wasClamped = clamped !== rawNum;
+    ethNumberEl.value = formatInt(clamped);
+    if (impactHint) impactHint.hidden = !wasClamped;
   }
 
+  callDownstreamImpact(clamped);
+}
+
+// Wire up and initialize
+if (ethSliderEl && ethNumberEl){
+  // Mirror initial value into formatted input
+  ethNumberEl.value = formatInt(parseInt(ethSliderEl.value, 10));
+
+  ethSliderEl.addEventListener("input",  syncFromSlider);
+  ethNumberEl.addEventListener("input",  () => syncFromNumber({ clampOnBlur:false }));
+  ethNumberEl.addEventListener("change", () => syncFromNumber({ clampOnBlur:true }));
+  ethNumberEl.addEventListener("blur",   () => syncFromNumber({ clampOnBlur:true }));
+
+  // initial paint for hours/days
+  updateEthImpactUI(parseInt(ethSliderEl.value, 10));
+}
+
+
   /* ============================================================================
-   * NEW FEATURE: VALIDATOR LOOKUP CARD
+   * VALIDATOR LOOKUP + TIMELINE
    * ========================================================================== */
+
+  function insertValidatorTimeline(container, { previous, withdrawable, next }){
+    // Create a full-width row inside the kv grid, placed after the data rows
+    const full = document.createElement('div');
+    full.className = 'full';
+
+    const timeline = document.createElement('div');
+    timeline.className = 'validator-timeline';
+    timeline.setAttribute('role','list');
+    timeline.setAttribute('aria-label','Validator timeline: previous sweep, withdrawable, next sweep');
+    timeline.innerHTML = `
+      <div class="vt-line"></div>
+      <div class="vt-item" role="listitem" data-kind="prev">
+        <div class="vt-dot"></div>
+        <div class="vt-label">Previous sweep</div>
+        <div class="vt-time" data-field="previous">—</div>
+      </div>
+      <div class="vt-item" role="listitem" data-kind="withdrawable">
+        <div class="vt-dot"></div>
+        <div class="vt-label">Withdrawable at</div>
+        <div class="vt-time" data-field="withdrawable">—</div>
+      </div>
+      <div class="vt-item" role="listitem" data-kind="next">
+        <div class="vt-dot"></div>
+        <div class="vt-label">Next sweep</div>
+        <div class="vt-time" data-field="next">—</div>
+      </div>
+    `;
+
+    const fields = [
+      { key:'previous',     dt: previous,     sel:'[data-kind="prev"]' },
+      { key:'withdrawable', dt: withdrawable, sel:'[data-kind="withdrawable"]' },
+      { key:'next',         dt: next,         sel:'[data-kind="next"]' },
+    ];
+
+    const now = Date.now();
+    fields.forEach(f => {
+      const timeEl = timeline.querySelector(`[data-field="${f.key}"]`);
+      const itemEl = timeline.querySelector(f.sel);
+      if (f.dt && !Number.isNaN(f.dt.getTime?.() ?? NaN)){
+        const d = new Date(f.dt);
+        timeEl.textContent = fmtDT(d.getTime());
+        timeEl.title = relativeTime(d);
+        // mark reached for past/now for previous & withdrawable (but not for "next")
+        if (f.key !== 'next'){
+          itemEl.classList.toggle('reached', d.getTime() <= now);
+        }
+      } else {
+        timeEl.textContent = '—';
+        timeEl.title = 'Not available';
+        itemEl.classList.remove('reached');
+      }
+    });
+
+    full.appendChild(timeline);
+    container.appendChild(full);
+  }
 
   async function fetchValidatorAndRender() {
     const idxInput = $("valIndex");
@@ -606,6 +783,7 @@
       const wdDt = epochToDate(Number(d.withdrawableepoch));
       const { prev, next } = sweepAlign(wdDt);
 
+      // Build base details (kept as two-column kv grid)
       out.innerHTML = `
         <div class="k">Validator</div><div class="v mono">${fmtInt(d.validatorindex)}</div>
         <div class="k">Status</div><div class="v mono">${d.status}</div>
@@ -615,8 +793,16 @@
         <div class="k">Withdrawable at</div><div class="v mono">${fmtDT(wdDt.getTime())}</div>
         <div class="k">Previous sweep</div><div class="v mono">${prev ? fmtDT(prev.getTime()) : "—"}</div>
         <div class="k">Next sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
-        <div class="k">✅ ETH available at sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
+        <div class="k eth-available-at-sweep">ETH available at sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
       `;
+
+      // Insert compact timeline directly below the "ETH available at sweep" row
+      insertValidatorTimeline(out, {
+        previous: prev,
+        withdrawable: wdDt,
+        next: next
+      });
+
     } catch (err) {
       console.error(err);
       out.textContent = `Error fetching validator: ${err && err.message ? err.message : err}`;
