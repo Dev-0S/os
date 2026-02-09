@@ -783,7 +783,7 @@
     const secs=document.querySelectorAll('section[id]'),links=document.querySelectorAll('.nav-links a[data-link]');
     function setActive(){
       let cur='';
-      secs.forEach(s=>{if(scrollY>=s.offsetTop-100)cur=s.id});
+      secs.forEach(s=>{if(scrollY>=s.offsetTop-200)cur=s.id});
       links.forEach(l=>{l.classList.toggle('active',l.getAttribute('href')==='#'+cur)});
     }
     window.addEventListener('scroll',setActive,{passive:true});
