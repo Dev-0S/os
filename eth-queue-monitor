@@ -1,0 +1,1511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>ETH Queue Monitor — Dev-0S</title>
+<meta name="description" content="Real-time Ethereum validator entry & exit queue monitor with unstaking impact calculator and validator search." />
+<meta name="theme-color" content="#0a0a0f" />
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+
+<!-- Open Graph -->
+<meta property="og:title" content="ETH Queue Monitor — Dev-0S" />
+<meta property="og:description" content="Real-time Ethereum validator entry & exit queue monitor." />
+<meta property="og:type" content="website" />
+
+<style>
+  /* ============================================================
+     CSS CUSTOM PROPERTIES
+     ============================================================ */
+  @property --border-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: rgba(255,255,255,.03);
+    --surface-solid: #0f1016;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --line: rgba(255,255,255,.06);
+    --accent: #22d3ee;
+    --accent-2: #06b6d4;
+    --accent-green: #5ad6a3;
+    --accent-purple: #8b5cf6;
+    --shadow: 0 20px 60px rgba(0,0,0,.4);
+    --radius: 16px;
+    --container: 1240px;
+
+    --meta-h: 40px;
+    --nav-h: 64px;
+    --header-offset: calc(var(--meta-h) + var(--nav-h) + 12px);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: var(--header-offset);
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; transition: color .2s; }
+  .container { max-width: var(--container); margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* ============================================================
+     GRID BACKGROUND
+     ============================================================ */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ============================================================
+     AMBIENT GLOW ORBS
+     ============================================================ */
+  .bg-glow { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(120px); opacity: .3;
+    animation: drift 25s ease-in-out infinite;
+  }
+  .orb-1 { width: 600px; height: 600px; background: rgba(34,211,238,.12); top: -200px; left: 15%; animation-delay: 0s; }
+  .orb-2 { width: 500px; height: 500px; background: rgba(139,92,246,.10); bottom: 5%; right: 10%; animation-delay: -10s; }
+  .orb-3 { width: 400px; height: 400px; background: rgba(90,214,163,.08); top: 50%; left: 55%; animation-delay: -18s; }
+  @keyframes drift {
+    0%,100% { transform: translate(0,0) scale(1); }
+    33% { transform: translate(40px,-30px) scale(1.08); }
+    66% { transform: translate(-25px,25px) scale(.92); }
+  }
+
+  /* ============================================================
+     CURSOR GLOW
+     ============================================================ */
+  .cursor-glow {
+    position: fixed; width: 600px; height: 600px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(34,211,238,.07) 0%, transparent 70%);
+    pointer-events: none; z-index: 0; transform: translate(-50%,-50%);
+    transition: opacity .3s; opacity: 0;
+  }
+  .cursor-glow.active { opacity: 1; }
+
+  /* ============================================================
+     TOP METRICS STRIP
+     ============================================================ */
+  .meta-strip {
+    position: fixed; inset: 0 0 auto 0; height: var(--meta-h); z-index: 30;
+    display: flex; align-items: center;
+    backdrop-filter: saturate(160%) blur(16px);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    background: rgba(10,10,15,.92);
+    border: none;
+  }
+  .meta-items {
+    display: flex; gap: 0; align-items: center;
+    font-size: 12px; letter-spacing: .03em; color: var(--muted);
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border: none; border-radius: 0;
+    background: none; white-space: nowrap;
+  }
+  .chip + .chip { border-left: 1px solid rgba(255,255,255,.08); }
+  .chip b { color: var(--ink); font-weight: 700; }
+
+  /* ============================================================
+     MAIN NAV
+     ============================================================ */
+  .nav {
+    position: fixed; top: var(--meta-h); left: 0; right: 0; z-index: 20;
+    backdrop-filter: saturate(160%) blur(16px);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    background: rgba(10,10,15,.92);
+    border: none;
+  }
+  .nav-inner { height: var(--nav-h); display: flex; align-items: center; gap: 20px; }
+  .brand { font-weight: 900; letter-spacing: .4px; font-size: 18px; }
+  .brand .dot { color: var(--accent); }
+  .navlinks {
+    margin-left: auto; display: flex; gap: 4px; align-items: center;
+  }
+  .navlinks a {
+    padding: 8px 16px; border-radius: 10px;
+    font-weight: 600; font-size: 14px; color: var(--muted);
+    transition: all .25s; position: relative;
+  }
+  .navlinks a:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+  .navlinks a.active {
+    color: var(--accent); background: rgba(34,211,238,.08);
+    box-shadow: 0 0 16px rgba(34,211,238,.15);
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #062c1f; border: 0; border-radius: 12px; padding: 10px 20px;
+    font-weight: 800; font-size: 14px; letter-spacing: .02em;
+    transition: transform .2s, box-shadow .3s, filter .25s;
+    box-shadow: 0 4px 20px rgba(34,211,238,.25);
+  }
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(34,211,238,.4);
+    filter: brightness(1.08);
+  }
+  .btn:active { transform: translateY(-1px); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ============================================================
+     HERO (video background)
+     ============================================================ */
+  .hero {
+    position: relative; min-height: 72vh; display: grid; align-items: center; overflow: hidden;
+    margin-top: var(--header-offset);
+    scroll-margin-top: var(--header-offset);
+    z-index: 1;
+  }
+  .hero-canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    z-index: 0;
+  }
+  .hero-content {
+    position: relative; z-index: 2; padding: 16vh 0 14vh;
+    max-width: 680px;
+  }
+  .title {
+    font-size: clamp(36px, 6.5vw, 72px);
+    font-weight: 900; letter-spacing: -.5px; line-height: 1.05; margin: 0 0 16px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 80%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; margin-bottom: 20px;
+    border: 1px solid rgba(34,211,238,.25); border-radius: 999px;
+    background: rgba(34,211,238,.08); color: var(--accent);
+    font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  }
+  .hero-tag .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(90,214,163,.6); }
+    50% { opacity: .7; box-shadow: 0 0 0 8px rgba(90,214,163,0); }
+  }
+  .subtitle { color: var(--muted); margin: 0; }
+
+  .hero-stats {
+    display: flex; gap: 32px; margin-top: 28px; flex-wrap: wrap;
+  }
+  .hero-stat {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .hero-stat .stat-val {
+    font-size: 22px; font-weight: 900; letter-spacing: -.3px;
+    color: var(--accent);
+  }
+  .hero-stat .stat-label {
+    font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase;
+  }
+
+  /* ============================================================
+     SCROLL REVEAL
+     ============================================================ */
+  .reveal {
+    opacity: 0; transform: translateY(30px);
+    transition: opacity .6s ease, transform .6s ease;
+  }
+  .reveal.visible {
+    opacity: 1; transform: translateY(0);
+  }
+
+  /* ============================================================
+     SECTION HEADINGS
+     ============================================================ */
+  .section-header {
+    margin-bottom: 28px;
+  }
+  .section-header h2 {
+    font-size: 28px; font-weight: 900; margin: 0 0 6px;
+    letter-spacing: -.3px;
+  }
+  .section-header .section-line {
+    width: 48px; height: 3px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+  }
+
+  /* ============================================================
+     SECTIONS & CARDS (glass morphism)
+     ============================================================ */
+  section { padding: 32px 0 48px; }
+  .grid { display: grid; gap: 20px; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-1 { grid-template-columns: 1fr; }
+
+  /* Animated gradient border card */
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+    transition: border-color .3s, box-shadow .3s, transform .3s;
+    overflow: hidden;
+  }
+  .card::before {
+    content: "";
+    position: absolute; inset: 0; border-radius: var(--radius);
+    padding: 1px;
+    background: conic-gradient(from var(--border-angle), transparent 60%, rgba(34,211,238,.3), rgba(139,92,246,.2), transparent 90%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: rotateBorder 6s linear infinite;
+    opacity: 0; transition: opacity .4s;
+    pointer-events: none;
+  }
+  .card:hover::before { opacity: 1; }
+  .card:hover {
+    border-color: rgba(34,211,238,.15);
+    box-shadow: 0 24px 64px rgba(0,0,0,.5), 0 0 40px rgba(34,211,238,.06);
+    transform: translateY(-4px);
+  }
+  @keyframes rotateBorder { to { --border-angle: 360deg; } }
+
+  .pad { padding: 24px 28px; }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: grid; place-items: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .card-icon.blue {
+    background: linear-gradient(135deg, rgba(34,211,238,.15), rgba(34,211,238,.05));
+    border: 1px solid rgba(34,211,238,.2);
+    color: var(--accent);
+  }
+  .card-icon.green {
+    background: linear-gradient(135deg, rgba(90,214,163,.15), rgba(90,214,163,.05));
+    border: 1px solid rgba(90,214,163,.2);
+    color: var(--accent-green);
+  }
+  .card-icon.purple {
+    background: linear-gradient(135deg, rgba(139,92,246,.15), rgba(139,92,246,.05));
+    border: 1px solid rgba(139,92,246,.2);
+    color: var(--accent-purple);
+  }
+  .card-header h3 {
+    margin: 0; font-size: 18px; font-weight: 800; letter-spacing: .02em;
+  }
+
+  .kv {
+    display: grid; grid-template-columns: auto 1fr;
+    gap: 10px 16px; align-items: center;
+  }
+  .kv .k {
+    color: var(--muted); font-size: 14px;
+  }
+  .kv .v {
+    text-align: right; font-weight: 700; font-size: 14px;
+  }
+  .kv .full { grid-column: 1 / -1; }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+
+  .note {
+    font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.6;
+    padding-top: 12px; border-top: 1px solid var(--line);
+  }
+
+  #entry, #exit, #calc, #validatorLookup, #overview {
+    scroll-margin-top: var(--header-offset);
+  }
+
+  /* ============================================================
+     STAT HIGHLIGHTS (big numbers in cards)
+     ============================================================ */
+  .stat-highlight {
+    font-size: 28px; font-weight: 900; letter-spacing: -.3px;
+    background: linear-gradient(135deg, var(--ink), var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ============================================================
+     SLIDER (premium styled)
+     ============================================================ */
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+    border-radius: 999px; outline: none; cursor: pointer;
+    background: rgba(255,255,255,.06);
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent);
+    margin-top: -8px; cursor: pointer;
+    box-shadow: 0 0 20px rgba(34,211,238,.4), 0 4px 12px rgba(0,0,0,.3);
+    transition: transform .15s, box-shadow .2s;
+  }
+  input[type="range"]::-moz-range-track {
+    height: 6px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent);
+    box-shadow: 0 0 20px rgba(34,211,238,.4), 0 4px 12px rgba(0,0,0,.3);
+    cursor: pointer; transition: transform .15s, box-shadow .2s;
+  }
+  input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 28px rgba(34,211,238,.6), 0 6px 16px rgba(0,0,0,.4);
+  }
+  input[type="range"]:hover::-moz-range-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 28px rgba(34,211,238,.6), 0 6px 16px rgba(0,0,0,.4);
+  }
+
+  /* ============================================================
+     TEXT INPUTS
+     ============================================================ */
+  .text-input, input[type="number"] {
+    padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,.03); color: var(--ink);
+    font: inherit; transition: all .25s;
+  }
+  .text-input:focus, input[type="number"]:focus {
+    outline: none;
+    border-color: rgba(34,211,238,.4);
+    box-shadow: 0 0 0 4px rgba(34,211,238,.08), 0 0 20px rgba(34,211,238,.06);
+    background: rgba(255,255,255,.05);
+  }
+
+  /* ============================================================
+     IMPACT ROW
+     ============================================================ */
+  .impact-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .impact-row .text-input { width: 140px; }
+  .impact-hint { margin: 2px 0 0; }
+
+  /* ============================================================
+     VALIDATOR TIMELINE
+     ============================================================ */
+  .validator-timeline {
+    position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px; padding-top: .75rem;
+  }
+  .validator-timeline .vt-line {
+    position: absolute; left: 4px; right: 4px; top: 14px; height: 2px;
+    background: var(--line);
+    border-radius: 2px;
+  }
+  .validator-timeline .vt-item {
+    text-align: center; padding: 0 .25rem;
+    transition: transform .25s;
+  }
+  .validator-timeline .vt-item:hover { transform: translateY(-3px); }
+  .validator-timeline .vt-dot {
+    width: 12px; height: 12px; border-radius: 50%; margin: 0 auto .25rem;
+    background: rgba(255,255,255,.12);
+    border: 2px solid var(--surface-solid);
+    box-shadow: 0 0 0 2px var(--line);
+    position: relative; top: -6px;
+    transition: all .4s;
+  }
+  .validator-timeline .vt-item.reached .vt-dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent), 0 0 16px rgba(34,211,238,.5);
+  }
+  .validator-timeline .vt-label { font-size: .75rem; color: var(--muted); line-height: 1.2; }
+  .validator-timeline .vt-time { font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ============================================================
+     LOADER
+     ============================================================ */
+  .loader.hidden { display: none; }
+  .loader {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: rgba(10,10,15,.7); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); z-index: 9999;
+  }
+  .loader-inner { text-align: center; }
+  .spinner {
+    width: 56px; height: 56px; position: relative; margin: 0 auto 16px;
+  }
+  .spinner::before, .spinner::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+  .spinner::after {
+    inset: 6px;
+    border-top-color: var(--accent-purple);
+    animation-duration: 1.6s;
+    animation-direction: reverse;
+  }
+  .loader p { color: var(--muted); font-size: 13px; letter-spacing: .04em; margin: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  .footer {
+    padding: 32px 0; text-align: center; color: var(--muted);
+    font-size: 13px; border-top: 1px solid var(--line);
+    margin-top: 24px;
+  }
+  .footer a { color: var(--accent); font-weight: 600; }
+  .footer a:hover { text-decoration: underline; }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 1080px) {
+    .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 860px) {
+    .hero-content { grid-template-columns: 1fr; gap: 24px; padding: 10vh 0 8vh; }
+    .title { font-size: clamp(30px, 8.5vw, 56px); }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .navlinks { display: none; }
+    .meta-items { gap: 6px; font-size: 11px; }
+    .chip { padding: 5px 10px; }
+    .hero-stats { gap: 20px; }
+  }
+  @media (max-width: 520px) {
+    .validator-timeline .vt-time { white-space: normal; }
+    .pad { padding: 18px 16px; }
+  }
+
+  /* ============================================================
+     REDUCED MOTION
+     ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    .hero-canvas { display: none; }
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+    .reveal { opacity: 1; transform: none; }
+  }
+
+  /* ============================================================
+     FORMULA DISPLAY
+     ============================================================ */
+  .formula-box {
+    padding: 12px 16px; border-radius: 10px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--line);
+    font-size: 13px; color: var(--muted);
+  }
+
+  /* ============================================================
+     SEARCH INPUT GROUP
+     ============================================================ */
+  .search-group {
+    display: flex; gap: 12px; margin-bottom: 20px;
+  }
+  .search-group input {
+    flex: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- Ambient glow orbs -->
+<div class="bg-glow">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- Cursor glow -->
+<div class="cursor-glow" id="cursorGlow"></div>
+
+<!-- Top metrics strip -->
+<div class="meta-strip">
+  <div class="container">
+    <div class="meta-items">
+      <span class="chip">Snapshot <b id="chipDate">—</b></span>
+      <span class="chip">Active validators <b id="chipActive">—</b></span>
+      <span class="chip">Churn/epoch <b id="chipChurn">256</b></span>
+      <span class="chip">Sweep <b id="chipSweep">—</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- Primary nav -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <div class="brand">Dev<span class="dot">-</span>0S</div>
+    <div class="brand" id="ethUsdChip">ETH<span class="dot"> / </span>USD: —</div>
+    <div class="navlinks">
+      <a href="#overview">Overview</a>
+      <a href="#entry">Queue</a>
+      <a href="#calc">Calculator</a>
+      <a href="#validatorLookup">Search</a>
+    </div>
+    <button id="refresh" class="btn" title="Refresh queue data">⟳ Refresh</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="overview" aria-label="Ethereum Queue Overview">
+  <canvas class="hero-canvas" id="meshCanvas"></canvas>
+
+  <div class="hero-content container">
+    <div class="hero-tag">
+      <span class="pulse-dot"></span>
+      Live Data
+    </div>
+    <h1 class="title">Ethereum<br>Queue Monitor</h1>
+    <p class="subtitle" style="max-width:54ch; font-size:16px; line-height:1.7;">
+      Real-time validator entry & exit queue tracking, unstaking impact analysis, and individual validator lookup — powered by the Beacon Chain.
+    </p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="stat-val mono" id="heroEntryQ">—</span>
+        <span class="stat-label">Entry queue</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-val mono" id="heroExitQ">—</span>
+        <span class="stat-label">Exit queue</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-val mono" id="heroActive">—</span>
+        <span class="stat-label">Validators</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- THREE DATA CARDS -->
+<section>
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Network Overview</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="grid grid-3">
+      <!-- Network Details -->
+      <div class="card pad reveal">
+        <div class="card-header">
+          <div class="card-icon blue">⬡</div>
+          <h3>Network Details</h3>
+        </div>
+        <div class="kv">
+          <div class="k">Last refresh</div><div class="v mono" id="snapDate">—</div>
+          <div class="k">Active validators</div><div class="v mono" id="active">—</div>
+          <div class="k">Churn / epoch</div><div class="v mono" id="churn">256 / epoch</div>
+          <div class="k">ETH sweep</div><div class="v mono" id="statusSweep">—</div>
+        </div>
+        <div class="note">Sweep time is added to the exit queue wait to estimate the <em>withdraw-ready</em> time.</div>
+      </div>
+
+      <!-- Entry Queue -->
+      <div class="card pad reveal" id="entry" style="transition-delay:.1s">
+        <div class="card-header">
+          <div class="card-icon green">↗</div>
+          <h3>Entry Queue</h3>
+        </div>
+        <div class="kv">
+          <div class="k">Validators</div><div class="v mono" id="entryQ">—</div>
+          <div class="k">ETH</div><div class="v mono" id="entryEth">—</div>
+          <div class="k">Entry wait</div><div class="v mono" id="entryWait">—</div>
+          <div class="k">ETA</div><div class="v mono" id="entryEta">—</div>
+        </div>
+        <div class="note">Wait uses ETH in the entry queue → epochs (÷256 ETH) → minutes → hours → days.</div>
+      </div>
+
+      <!-- Exit Queue -->
+      <div class="card pad reveal" id="exit" style="transition-delay:.2s">
+        <div class="card-header">
+          <div class="card-icon purple">↙</div>
+          <h3>Exit Queue</h3>
+        </div>
+        <div class="kv">
+          <div class="k">Validators</div><div class="v mono" id="exitQ">—</div>
+          <div class="k">ETH</div><div class="v mono" id="exitEth">—</div>
+          <div class="k">Exit queue</div><div class="v mono" id="exitWait">—</div>
+          <div class="k">Withdraw-ready ETA</div><div class="v mono" id="withdrawEta">—</div>
+        </div>
+        <div class="note">ETA = now + exit queue + sweep + 27 hour protocol delay. Sweep = validators ÷ 115,200 per day.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EXIT IMPACT CALCULATOR -->
+<section id="calc">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Unstaking Impact Calculator</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="card pad reveal">
+      <div class="card-header">
+        <div class="card-icon blue">⚙</div>
+        <h3 id="impactHeading">Exit Queue - Unstaking Impact</h3>
+      </div>
+      <div class="grid grid-1" style="gap:16px;">
+        <input id="ethSlider" type="range" min="1" max="1000000" step="1" value="32" aria-labelledby="impactHeading" />
+
+        <div class="kv" style="gap:10px 16px;">
+          <div class="k" id="ethUnstakedLabel">ETH Unstaked</div>
+          <div class="v">
+            <input
+              id="ethNumber"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9,]*"
+              placeholder="e.g. 12,500"
+              class="text-input mono"
+              aria-labelledby="ethUnstakedLabel"
+              style="width:160px; text-align:right;"
+            />
+            <div class="note" id="impactHint" hidden style="border:0; padding:0; margin-top:4px;">Value adjusted to allowed range.</div>
+          </div>
+          <div class="k">Estimated Queue Increase</div>
+          <div class="v mono stat-highlight" id="ethSliderHours">—</div>
+        </div>
+
+        <div class="formula-box">
+          Formula: <span class="mono">((ETH / 256) × 6.4) ÷ 60 ÷ 24 → ETH ÷ 57,600</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VALIDATOR LOOKUP -->
+<section id="validatorLookup">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Validator Search</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="card pad reveal">
+      <div class="card-header">
+        <div class="card-icon purple">🔍</div>
+        <h3>Lookup Validator</h3>
+      </div>
+      <div class="search-group">
+        <input id="valIndex" type="number" placeholder="Enter validator index" class="text-input" style="flex:1;" />
+        <button id="fetchValidator" class="btn">Lookup</button>
+      </div>
+      <div id="validatorResult" class="kv" style="gap:8px 16px;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <p>Built by <a href="index.html">Dev-0S</a> — Data from <a href="https://beaconcha.in" target="_blank" rel="noopener">beaconcha.in</a> & <a href="https://coinbase.com" target="_blank" rel="noopener">Coinbase</a></p>
+  </div>
+</footer>
+
+<!-- LOADER -->
+<div id="loader" class="loader hidden" aria-hidden="true">
+  <div class="loader-inner">
+    <div class="spinner"></div>
+    <p>Fetching data…</p>
+  </div>
+</div>
+
+<!-- ==========================================================
+     INTERACTIVE WIREFRAME TERRAIN MESH
+     ========================================================== -->
+<script>
+(function(){
+  const canvas = document.getElementById('meshCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let mouseX = 0.5, mouseY = 0.5, smx = 0.5, smy = 0.5;
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX / window.innerWidth;
+    mouseY = e.clientY / window.innerHeight;
+  });
+
+  let cw, ch;
+  function resize(){
+    const r = canvas.parentElement.getBoundingClientRect();
+    const d = devicePixelRatio;
+    cw = r.width * d; ch = r.height * d;
+    canvas.width = cw; canvas.height = ch;
+    canvas.style.width = r.width + 'px';
+    canvas.style.height = r.height + 'px';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ── Ethereum diamond geometry (accurate proportions) ──
+  // Top is ~60% of total height, bottom ~35%, gap ~5%
+  const SUB = 12;
+  const GAP = 0.04;  // half-gap between top & bottom halves
+  const W = 0.58;    // half-width at widest
+
+  const topApex  = [0,  1.2,  0];
+  const botApex  = [0, -1.05, 0];
+  // Upper ring (just above gap)
+  const topRing = [
+    [0,    GAP, W],
+    [W,    GAP, 0],
+    [0,    GAP, -W],
+    [-W,   GAP, 0],
+  ];
+  // Lower ring (just below gap)
+  const botRing = [
+    [0,   -GAP, W],
+    [W,   -GAP, 0],
+    [0,   -GAP, -W],
+    [-W,  -GAP, 0],
+  ];
+
+  // Subdivide triangle → vertices + edges
+  function subdivTri(a, b, c){
+    const verts = [], grid = [];
+    const edgeSet = new Set();
+    for(let i = 0; i <= SUB; i++){
+      grid[i] = [];
+      for(let j = 0; j <= SUB - i; j++){
+        const u = i/SUB, v = j/SUB, w2 = 1-u-v;
+        grid[i][j] = verts.length;
+        verts.push([a[0]*w2+b[0]*u+c[0]*v, a[1]*w2+b[1]*u+c[1]*v, a[2]*w2+b[2]*u+c[2]*v]);
+      }
+    }
+    function ae(a2,b2){ const k = a2<b2 ? a2+','+b2 : b2+','+a2; edgeSet.add(k); }
+    for(let i=0;i<=SUB;i++) for(let j=0;j<=SUB-i;j++){
+      if(j<SUB-i) ae(grid[i][j],grid[i][j+1]);
+      if(i<SUB-j) ae(grid[i][j],grid[i+1][j]);
+      if(i<SUB&&j>0) ae(grid[i][j],grid[i+1][j-1]);
+    }
+    return { verts, edges: [...edgeSet].map(s=>{ const p=s.split(','); return [+p[0],+p[1]]; }) };
+  }
+
+  // Each face stores its edges + a face normal for backface culling
+  const faces = [];
+  function addFace(apex, m1, m2){
+    const sub = subdivTri(apex, m1, m2);
+    const off = allVerts.length;
+    allVerts.push(...sub.verts);
+    const edges = sub.edges.map(e => [e[0]+off, e[1]+off]);
+    // Face normal (cross product of two edge vectors from apex)
+    const e1 = [m1[0]-apex[0], m1[1]-apex[1], m1[2]-apex[2]];
+    const e2 = [m2[0]-apex[0], m2[1]-apex[1], m2[2]-apex[2]];
+    const nx = e1[1]*e2[2]-e1[2]*e2[1];
+    const ny = e1[2]*e2[0]-e1[0]*e2[2];
+    const nz = e1[0]*e2[1]-e1[1]*e2[0];
+    faces.push({ edges, normal: [nx,ny,nz] });
+  }
+
+  const allVerts = [];
+  for(let f = 0; f < 4; f++){
+    const t1 = topRing[f], t2 = topRing[(f+1)%4];
+    const b1 = botRing[f], b2 = botRing[(f+1)%4];
+    addFace(topApex, t1, t2);  // top half face
+    addFace(botApex, b2, b1);  // bottom half face
+  }
+
+  const N = allVerts.length;
+  const pxA = new Float32Array(N);
+  const pyA = new Float32Array(N);
+  const pzA = new Float32Array(N);
+
+  let time = 0, running = true;
+  new IntersectionObserver(e => { running = e[0].isIntersecting; }, { threshold: 0 }).observe(canvas.parentElement);
+
+  // Orbiting particles
+  const PARTICLES = 30;
+  const pData = [];
+  for(let i = 0; i < PARTICLES; i++){
+    pData.push({
+      a: Math.random()*Math.PI*2,
+      r: 0.9 + Math.random()*1.2,
+      y: (Math.random()-0.35)*2.4,
+      sp: 0.12 + Math.random()*0.25,
+      sz: 0.8 + Math.random()*1.2
+    });
+  }
+
+  function draw(){
+    requestAnimationFrame(draw);
+    if(!running) return;
+
+    time += 0.003;
+    smx += (mouseX - smx) * 0.012;
+    smy += (mouseY - smy) * 0.012;
+
+    const dpr = devicePixelRatio;
+    ctx.clearRect(0, 0, cw, ch);
+
+    const rotY = time * 0.5 + (smx - 0.5) * 0.3;
+    const rotX = 0.18 + (smy - 0.5) * 0.15;
+    const cRX = Math.cos(rotX), sRX = Math.sin(rotX);
+    const cRY = Math.cos(rotY), sRY = Math.sin(rotY);
+
+    const sc = Math.min(cw, ch) * 0.3;
+    const cx = cw * 0.62, cy = ch * 0.48;
+
+    // Project all vertices
+    for(let i = 0; i < N; i++){
+      const v = allVerts[i];
+      const x1 = v[0]*cRY - v[2]*sRY;
+      const z1 = v[0]*sRY + v[2]*cRY;
+      const y1 = v[1]*cRX - z1*sRX;
+      const z2 = v[1]*sRX + z1*cRX;
+      const p = 3.5 / (3.5 + z2 * 0.4);
+      pxA[i] = cx + x1*sc*p;
+      pyA[i] = cy - y1*sc*p;
+      pzA[i] = z2;
+    }
+
+    // Draw each face — use face normal for proper backface culling
+    for(let fi = 0; fi < faces.length; fi++){
+      const f = faces[fi];
+      const n = f.normal;
+      // Rotate normal same as vertices
+      const nx1 = n[0]*cRY - n[2]*sRY;
+      const nz1 = n[0]*sRY + n[2]*cRY;
+      const ny1 = n[1]*cRX - nz1*sRX;
+      const nz2 = n[1]*sRX + nz1*cRX;
+
+      // Dot product with view direction (0,0,1) = nz2
+      const facing = nz2 > 0; // front-facing
+
+      ctx.strokeStyle = facing
+        ? 'rgba(34,211,238,0.22)'
+        : 'rgba(34,211,238,0.04)';
+      ctx.lineWidth = (facing ? 0.7 : 0.4) * dpr;
+
+      const edges = f.edges;
+      ctx.beginPath();
+      for(let i = 0; i < edges.length; i++){
+        const a = edges[i][0], b = edges[i][1];
+        ctx.moveTo(pxA[a], pyA[a]);
+        ctx.lineTo(pxA[b], pyA[b]);
+      }
+      ctx.stroke();
+    }
+
+    // Structural ridgelines (the 4 main edges + mid rings)
+    ctx.lineWidth = 1.4 * dpr;
+    function proj(v){
+      const x1=v[0]*cRY-v[2]*sRY, z1=v[0]*sRY+v[2]*cRY;
+      const y1=v[1]*cRX-z1*sRX, z2=v[1]*sRX+z1*cRX;
+      const p=3.5/(3.5+z2*0.4);
+      return { x:cx+x1*sc*p, y:cy-y1*sc*p, z:z2 };
+    }
+    const pTop = proj(topApex), pBot = proj(botApex);
+    for(let f2 = 0; f2 < 4; f2++){
+      const pm1t = proj(topRing[f2]), pm2t = proj(topRing[(f2+1)%4]);
+      const pm1b = proj(botRing[f2]), pm2b = proj(botRing[(f2+1)%4]);
+      const front = pm1t.z > -0.2;
+      ctx.strokeStyle = front ? 'rgba(34,211,238,0.45)' : 'rgba(34,211,238,0.08)';
+      ctx.beginPath();
+      // Top ridge
+      ctx.moveTo(pTop.x, pTop.y); ctx.lineTo(pm1t.x, pm1t.y);
+      // Bottom ridge
+      ctx.moveTo(pBot.x, pBot.y); ctx.lineTo(pm1b.x, pm1b.y);
+      ctx.stroke();
+      // Mid ring segments
+      const ringFront = pm1t.z > -0.2 && pm2t.z > -0.2;
+      ctx.strokeStyle = ringFront ? 'rgba(34,211,238,0.35)' : 'rgba(34,211,238,0.06)';
+      ctx.beginPath();
+      ctx.moveTo(pm1t.x, pm1t.y); ctx.lineTo(pm2t.x, pm2t.y);
+      ctx.moveTo(pm1b.x, pm1b.y); ctx.lineTo(pm2b.x, pm2b.y);
+      ctx.stroke();
+    }
+
+    // Glow at center (the gap)
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, sc*0.35);
+    grd.addColorStop(0, 'rgba(34,211,238,0.04)');
+    grd.addColorStop(1, 'rgba(34,211,238,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(cx-sc*0.4, cy-sc*0.4, sc*0.8, sc*0.8);
+
+    // Particles
+    for(let i = 0; i < PARTICLES; i++){
+      const p = pData[i];
+      p.a += p.sp * 0.003;
+      const px2=Math.cos(p.a)*p.r, pz2=Math.sin(p.a)*p.r;
+      const py2=p.y+Math.sin(time*1.5+i)*0.12;
+      const x1=px2*cRY-pz2*sRY, z1=px2*sRY+pz2*cRY;
+      const y1=py2*cRX-z1*sRX, z2=py2*sRX+z1*cRX;
+      const pp=3.5/(3.5+z2*0.4);
+      const sx2=cx+x1*sc*pp, sy2=cy-y1*sc*pp;
+      ctx.globalAlpha = z2 > 0 ? 0.3 : 0.08;
+      ctx.fillStyle = 'rgba(34,211,238,1)';
+      ctx.beginPath();
+      ctx.arc(sx2, sy2, p.sz*dpr*pp, 0, 6.28);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  draw();
+})();
+</script>
+
+<!-- ==========================================================
+     CURSOR GLOW + SCROLL REVEAL + NAV SCROLL-SPY
+     ========================================================== -->
+<script>
+(function(){
+  // Cursor glow
+  const glow = document.getElementById('cursorGlow');
+  if(glow){
+    document.addEventListener('mousemove', e => {
+      glow.style.left = e.clientX + 'px';
+      glow.style.top = e.clientY + 'px';
+      glow.classList.add('active');
+    });
+    document.addEventListener('mouseleave', () => glow.classList.remove('active'));
+  }
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  if(reveals.length){
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if(e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
+    }, { threshold: 0.1 });
+    reveals.forEach(el => obs.observe(el));
+  }
+
+  // Nav scroll spy
+  const navLinks = document.querySelectorAll('.navlinks a');
+  const sections = document.querySelectorAll('section[id], header[id]');
+  function setActive(){
+    const scrollY = window.scrollY;
+    let cur = '';
+    sections.forEach(s => { if(scrollY >= s.offsetTop - 200) cur = s.id; });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+    });
+  }
+  window.addEventListener('scroll', setActive, { passive: true });
+  setActive();
+})();
+</script>
+
+<!-- ==========================================================
+     ALL CALCULATIONS (PRESERVED EXACTLY)
+     ========================================================== -->
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================================
+   * CONFIG / CONSTANTS
+   * ========================================================================== */
+
+  // Existing queue endpoint (preserved)
+  const API_URL = "https://beaconcha.in/api/v1/validators/queue";
+
+  // NEW: Per-validator endpoint
+  const API_VAL = (idx) => `https://beaconcha.in/api/v1/validator/${idx}`;
+
+  // Sweep cadence — dynamically calculated from validator count
+  // 16 withdrawals/slot × 7200 slots/day = 115,200 validators/day
+  const WITHDRAWALS_PER_DAY = 115200;
+  let SWEEP_DAYS = 8.4;                  // initial estimate, updated on first fetch
+  function calcSweepDays(validatorCount) {
+    return validatorCount / WITHDRAWALS_PER_DAY;
+  }
+
+  const GENESIS_UNIX = 1606824023;       // 2020-12-01 12:00:23 UTC (mainnet)
+  const SECONDS_PER_EPOCH = 32 * 12;     // 384s per epoch
+  // Align sweeps to a reference time (using genesis by default)
+  const FIRST_SWEEP = new Date(Date.UTC(2020, 11, 1, 12, 0, 23)); // 2020-12-01 12:00:23Z
+
+  /* ============================================================================
+   * DOM HELPERS & FORMATTING
+   * ========================================================================== */
+
+  const $ = (id) => document.getElementById(id);
+
+  // Format an integer with thousands separators; preserve your "—" fallback
+  const fmtInt = (n) => (n == null ? "—" : Number(n).toLocaleString());
+
+  // Your original DD/MM/YYYY HH:MM formatting (preserved)
+  const fmtDT = (ms) => {
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return "—";
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  };
+
+  // "X days, Y hours" (preserved)
+  const fmtDH = (d, h) => `${d} days, ${h} hours`;
+
+  /* ============================================================================
+   * LOADER (preserved)
+   * ========================================================================== */
+
+  const loader = $("loader");
+  function showLoader() {
+    if (!loader) return;
+    loader.classList.remove("hidden");
+    loader.setAttribute("aria-hidden", "false");
+  }
+  function hideLoader() {
+    if (!loader) return;
+    loader.classList.add("hidden");
+    loader.setAttribute("aria-hidden", "true");
+  }
+
+  /* ============================================================================
+   * UNITS / TIME HELPERS (preserved + extended)
+   * ========================================================================== */
+
+  // API returns balances in gwei. Convert to whole ETH (truncate)
+  function gweiToEthInt(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.trunc(n / 1e9);
+  }
+
+  // Wait calculator — expects ETH in queue (preserved)
+  function ethQueueWait(ethAmount) {
+    const epoch_wait = ethAmount / 256;               // 256 ETH per epoch (8 validators × 32 ETH)
+    bringToLayout(); // no-op, intentional for readability
+    const min_wait = epoch_wait * ((12 * 32) / 60);   // 6.4 minutes per epoch
+    const hour_wait = min_wait / 60;
+    const days_wait = hour_wait / 24;
+    const whole_days = Math.trunc(days_wait);
+    const hours = Math.round((days_wait - whole_days) * 24);
+    return { whole_days, hours };
+  }
+
+  function bringToLayout(){} // tiny helper to keep blocks visually separated
+
+  // Days + hours → milliseconds (preserved)
+  function toMs(days, hours) {
+    return (days + hours / 24) * 24 * 3600 * 1000;
+  }
+
+  // NEW: Convert beacon epoch → Date (UTC)
+  function epochToDate(epoch) {
+    const unix = GENESIS_UNIX + epoch * SECONDS_PER_EPOCH;
+    return new Date(unix * 1000);
+  }
+
+  // NEW: Given a Date, find the previous & next sweep times (based on FIRST_SWEEP and SWEEP_DAYS)
+  function sweepAlign(dt) {
+    const intervalMs = SWEEP_DAYS * 24 * 3600 * 1000;
+    const delta = dt - FIRST_SWEEP;
+    if (delta < 0) {
+      return { prev: null, next: FIRST_SWEEP };
+    }
+    const intervals = Math.floor(delta / intervalMs);
+    const prev = new Date(FIRST_SWEEP.getTime() + intervals * intervalMs);
+    const next = new Date(prev.getTime() + intervalMs);
+    return { prev, next };
+  }
+
+  // NEW: relative time strings for tooltips
+  function relativeTime(date) {
+    const diff = date.getTime() - Date.now();
+    const abs = Math.abs(diff);
+    const mins = Math.round(abs / 60000);
+    if (mins < 60) return diff >= 0 ? `in ${mins} min` : `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 48) return diff >= 0 ? `in ${hrs} h` : `${hrs} h ago`;
+    const days = Math.round(hrs / 24);
+    return diff >= 0 ? `in ${days} d` : `${days} d ago`;
+  }
+
+  /* ============================================================================
+   * REFRESH: Fetch the queue snapshot and update the three main cards (preserved)
+   * ========================================================================== */
+
+  async function refresh() {
+    const refreshBtn = $("refresh");
+    if (refreshBtn) refreshBtn.disabled = true;
+    showLoader();
+
+    try {
+      const res = await fetch(API_URL, { mode: "cors" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (!json || json.status !== "OK" || !json.data) throw new Error("Unexpected payload");
+
+      const d = json.data;
+      const now = Date.now();
+
+      // Dynamic sweep calculation: validators ÷ 115,200/day
+      const validatorCount = Number(d.validatorscount) || 0;
+      SWEEP_DAYS = validatorCount > 0 ? calcSweepDays(validatorCount) : SWEEP_DAYS;
+      const sweepStr = SWEEP_DAYS.toFixed(1) + ' days';
+
+      // Entry queue
+      const entryValidators = Number(d.beaconchain_entering) || 0;
+      const entryEthFromApi = gweiToEthInt(d.beaconchain_entering_balance);
+      const entryEth = entryEthFromApi || entryValidators * 32;
+      const entryWait = ethQueueWait(entryEth);
+      const entryEtaMs = now + toMs(entryWait.whole_days, entryWait.hours);
+
+      // Exit queue
+      const exitEth = gweiToEthInt(d.beaconchain_exiting_balance);
+      const exitValidators = Number(d.beaconchain_exiting) || Math.floor(exitEth / 32);
+      const exitWait = ethQueueWait(exitEth);
+      const withdrawEtaMs =
+        now +
+        toMs(exitWait.whole_days, exitWait.hours) +
+        SWEEP_DAYS * 24 * 3600 * 1000 +
+        27 * 3600 * 1000; // +27h protocol delay
+
+      // Meta strip
+      const chipDate = $("chipDate");
+      const chipActive = $("chipActive");
+      const chipChurn = $("chipChurn");
+      const chipSweep = $("chipSweep");
+      if (chipDate) chipDate.textContent = fmtDT(now);
+      if (chipActive) chipActive.textContent = fmtInt(validatorCount);
+      if (chipChurn) chipChurn.textContent = "256";
+      if (chipSweep) chipSweep.textContent = sweepStr;
+
+      // Network details card
+      const snapDate = $("snapDate");
+      const active = $("active");
+      const statusSweep = $("statusSweep");
+      if (snapDate) snapDate.textContent = fmtDT(now);
+      if (active) active.textContent = fmtInt(validatorCount);
+      if (statusSweep) statusSweep.textContent = sweepStr;
+
+      // Entry card
+      const entryQ = $("entryQ");
+      const entryEthEl = $("entryEth");
+      const entryWaitEl = $("entryWait");
+      const entryEta = $("entryEta");
+      if (entryQ) entryQ.textContent = fmtInt(entryValidators);
+      if (entryEthEl) entryEthEl.textContent = `${fmtInt(entryEth)} ETH`;
+      if (entryWaitEl) entryWaitEl.textContent = fmtDH(entryWait.whole_days, entryWait.hours);
+      if (entryEta) entryEta.textContent = fmtDT(entryEtaMs);
+
+      // Exit card
+      const exitQ = $("exitQ");
+      const exitEthEl = $("exitEth");
+      const exitWaitEl = $("exitWait");
+      const withdrawEta = $("withdrawEta");
+      if (exitQ) exitQ.textContent = fmtInt(exitValidators);
+      if (exitEthEl) exitEthEl.textContent = `${fmtInt(exitEth)} ETH`;
+      if (exitWaitEl) exitWaitEl.textContent = fmtDH(exitWait.whole_days, exitWait.hours);
+      if (withdrawEta) withdrawEta.textContent = fmtDT(withdrawEtaMs);
+
+      // Hero stats
+      const heroEntryQ = $("heroEntryQ");
+      const heroExitQ = $("heroExitQ");
+      const heroActive = $("heroActive");
+      if (heroEntryQ) heroEntryQ.textContent = fmtInt(entryValidators);
+      if (heroExitQ) heroExitQ.textContent = fmtInt(exitValidators);
+      if (heroActive) heroActive.textContent = fmtInt(d.validatorscount);
+    } catch (e) {
+      console.error(e);
+      const msg = e && e.message ? e.message : String(e);
+      alert(
+        "Failed to fetch queue data.\n\n" +
+          msg +
+          "\n\nIf this is a CORS issue, a small proxy or cached mirror will fix it."
+      );
+    } finally {
+      setTimeout(() => {
+        hideLoader();
+        const refreshBtn2 = $("refresh");
+        if (refreshBtn2) refreshBtn2.disabled = false;
+      }, 400);
+    }
+  }
+
+/* ============================================================================
+ * SLIDER + NUMBER: Exit Queue - Unstaking Impact (inside kv row)
+ * ========================================================================== */
+
+function callDownstreamImpact(value){
+  updateEthImpactUI(value);
+  document.dispatchEvent(new CustomEvent('unstake:impactChanged', { detail: { value } }));
+}
+
+function updateEthImpactUI(currentEthVal) {
+  const hrsEl = document.getElementById("ethSliderHours");
+  const wait = ethQueueWait(currentEthVal);
+  if (hrsEl) hrsEl.textContent = `${wait.whole_days} days, ${wait.hours} hours`;
+}
+
+const ethSliderEl = document.getElementById("ethSlider");
+const ethNumberEl = document.getElementById("ethNumber");
+const impactHint  = document.getElementById("impactHint");
+
+function clampToRange(v, min, max){ return Math.min(max, Math.max(min, v)); }
+function formatInt(n){ return Number(n).toLocaleString("en-US"); }
+function parseIntFromInput(str){
+  const cleaned = String(str || "").replace(/,/g, "").replace(/[^\d]/g, "");
+  if (cleaned === "") return NaN;
+  return parseInt(cleaned, 10);
+}
+
+function syncFromSlider(){
+  if (!ethSliderEl || !ethNumberEl) return;
+  const v = parseInt(ethSliderEl.value, 10) || 0;
+  ethNumberEl.value = formatInt(v);         // show commas
+  if (impactHint) impactHint.hidden = true;
+  callDownstreamImpact(v);
+}
+
+function syncFromNumber({ clampOnBlur = false } = {}){
+  if (!ethSliderEl || !ethNumberEl) return;
+
+  const min = parseInt(ethSliderEl.min, 10);
+  const max = parseInt(ethSliderEl.max, 10);
+
+  // parse user's entry (allow digits/commas)
+  const rawNum = parseIntFromInput(ethNumberEl.value);
+  if (Number.isNaN(rawNum)) {
+    // empty/invalid in-progress entry; don't update slider or UI yet
+    return;
+  }
+
+  // clamp only for the slider (so calculations stay valid)
+  const clamped = clampToRange(rawNum, min, max);
+  ethSliderEl.value = String(clamped);
+
+  // live formatting while typing (no decimals)
+  if (!clampOnBlur) {
+    ethNumberEl.value = formatInt(rawNum);
+    if (impactHint) impactHint.hidden = true;
+  } else {
+    // on blur/change, enforce clamp and show hint if we had to change it
+    const wasClamped = clamped !== rawNum;
+    ethNumberEl.value = formatInt(clamped);
+    if (impactHint) impactHint.hidden = !wasClamped;
+  }
+
+  callDownstreamImpact(clamped);
+}
+
+// Wire up and initialize
+if (ethSliderEl && ethNumberEl){
+  // Mirror initial value into formatted input
+  ethNumberEl.value = formatInt(parseInt(ethSliderEl.value, 10));
+
+  ethSliderEl.addEventListener("input",  syncFromSlider);
+  ethNumberEl.addEventListener("input",  () => syncFromNumber({ clampOnBlur:false }));
+  ethNumberEl.addEventListener("change", () => syncFromNumber({ clampOnBlur:true }));
+  ethNumberEl.addEventListener("blur",   () => syncFromNumber({ clampOnBlur:true }));
+
+  // initial paint for hours/days
+  updateEthImpactUI(parseInt(ethSliderEl.value, 10));
+}
+
+
+  /* ============================================================================
+   * VALIDATOR LOOKUP + TIMELINE
+   * ========================================================================== */
+
+  function insertValidatorTimeline(container, { previous, withdrawable, next }){
+    // Create a full-width row inside the kv grid, placed after the data rows
+    const full = document.createElement('div');
+    full.className = 'full';
+
+    const timeline = document.createElement('div');
+    timeline.className = 'validator-timeline';
+    timeline.setAttribute('role','list');
+    timeline.setAttribute('aria-label','Validator timeline: previous sweep, withdrawable, next sweep');
+    timeline.innerHTML = `
+      <div class="vt-line"></div>
+      <div class="vt-item" role="listitem" data-kind="prev">
+        <div class="vt-dot"></div>
+        <div class="vt-label">Previous sweep</div>
+        <div class="vt-time" data-field="previous">—</div>
+      </div>
+      <div class="vt-item" role="listitem" data-kind="withdrawable">
+        <div class="vt-dot"></div>
+        <div class="vt-label">Withdrawable at</div>
+        <div class="vt-time" data-field="withdrawable">—</div>
+      </div>
+      <div class="vt-item" role="listitem" data-kind="next">
+        <div class="vt-dot"></div>
+        <div class="vt-label">Next sweep</div>
+        <div class="vt-time" data-field="next">—</div>
+      </div>
+    `;
+
+    const fields = [
+      { key:'previous',     dt: previous,     sel:'[data-kind="prev"]' },
+      { key:'withdrawable', dt: withdrawable, sel:'[data-kind="withdrawable"]' },
+      { key:'next',         dt: next,         sel:'[data-kind="next"]' },
+    ];
+
+    const now = Date.now();
+    fields.forEach(f => {
+      const timeEl = timeline.querySelector(`[data-field="${f.key}"]`);
+      const itemEl = timeline.querySelector(f.sel);
+      if (f.dt && !Number.isNaN(f.dt.getTime?.() ?? NaN)){
+        const d = new Date(f.dt);
+        timeEl.textContent = fmtDT(d.getTime());
+        timeEl.title = relativeTime(d);
+        // mark reached for past/now for previous & withdrawable (but not for "next")
+        if (f.key !== 'next'){
+          itemEl.classList.toggle('reached', d.getTime() <= now);
+        }
+      } else {
+        timeEl.textContent = '—';
+        timeEl.title = 'Not available';
+        itemEl.classList.remove('reached');
+      }
+    });
+
+    full.appendChild(timeline);
+    container.appendChild(full);
+  }
+
+  async function fetchValidatorAndRender() {
+    const idxInput = $("valIndex");
+    const out = $("validatorResult");
+    if (!idxInput || !out) return;
+
+    const idx = String(idxInput.value || "").trim();
+    if (!idx) {
+      out.textContent = "Please enter a validator index.";
+      return;
+    }
+
+    showLoader();
+    try {
+      const res = await fetch(API_VAL(idx), { mode: "cors" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json();
+      if (!payload || payload.status !== "OK" || !payload.data) {
+        out.textContent = "No data returned for that validator.";
+        return;
+      }
+
+      const d = payload.data;
+      const balEth = (Number(d.balance) || 0) / 1e9;
+      const effEth = (Number(d.effectivebalance) || 0) / 1e9;
+      const withdrawnEth = (Number(d.total_withdrawals) || 0) / 1e9;
+
+      const wdDt = epochToDate(Number(d.withdrawableepoch));
+      const { prev, next } = sweepAlign(wdDt);
+
+      // Build base details (kept as two-column kv grid)
+      out.innerHTML = `
+        <div class="k">Validator</div><div class="v mono">${fmtInt(d.validatorindex)}</div>
+        <div class="k">Status</div><div class="v mono">${d.status}</div>
+        <div class="k">Balance</div><div class="v mono">${balEth.toFixed(4)} ETH</div>
+        <div class="k">Effective Balance</div><div class="v mono">${effEth.toFixed(4)} ETH</div>
+        <div class="k">Total Withdrawn</div><div class="v mono">${withdrawnEth.toFixed(4)} ETH</div>
+        <div class="k">Withdrawable at</div><div class="v mono">${fmtDT(wdDt.getTime())}</div>
+        <div class="k">Previous sweep</div><div class="v mono">${prev ? fmtDT(prev.getTime()) : "—"}</div>
+        <div class="k">Next sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
+        <div class="k eth-available-at-sweep">ETH available at sweep</div><div class="v mono">${fmtDT(next.getTime())}</div>
+      `;
+
+      // Insert compact timeline directly below the "ETH available at sweep" row
+      insertValidatorTimeline(out, {
+        previous: prev,
+        withdrawable: wdDt,
+        next: next
+      });
+
+    } catch (err) {
+      console.error(err);
+      out.textContent = `Error fetching validator: ${err && err.message ? err.message : err}`;
+    } finally {
+      hideLoader();
+    }
+  }
+
+  // Wire up lookup button + Enter-to-submit
+  const fetchBtn = $("fetchValidator");
+  if (fetchBtn) fetchBtn.addEventListener("click", fetchValidatorAndRender);
+  const idxField = $("valIndex");
+  if (idxField) {
+    idxField.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") fetchValidatorAndRender();
+    });
+  }
+
+  /* ============================================================================
+   * BOOTSTRAP: Refresh the queue snapshot on load & on button click
+   * ========================================================================== */
+
+  const refreshBtn = $("refresh");
+  if (refreshBtn) refreshBtn.addEventListener("click", refresh);
+
+  // Initial data fetch
+  refresh();
+
+  // === ETH/USD price chip from Coinbase (spot) ===
+  const COINBASE_PRICE_URL = "https://api.coinbase.com/v2/prices/ETH-USD/spot";
+
+  async function updateEthUsdChip(){
+    try {
+      const res = await fetch(COINBASE_PRICE_URL, {
+        mode: "cors",
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+
+      const amount = Number(j?.data?.amount);
+      if (!Number.isFinite(amount)) return;
+
+      // Round to whole dollars and add thousands separators
+      const rounded = Math.round(amount).toLocaleString("en-US");
+
+      const chip = document.getElementById("ethUsdChip");
+      if (chip) {
+        chip.innerHTML = `ETH<span class="dot"> / </span>USD: $${rounded}`;
+      }
+    } catch (e) {
+      console.warn("Price fetch failed:", e);
+    }
+  }
+
+  // Initial fetch + refresh every 60s
+  updateEthUsdChip();
+  setInterval(updateEthUsdChip, 60_000);
+
+})();
+</script>
+</body>
+</html>
