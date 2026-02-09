@@ -351,6 +351,15 @@
     }
     .social-link:hover .social-name{color:#22d3ee}
 
+    /* ── Globe network ── */
+    .globe-wrap{
+      position:relative;width:100%;margin-top:60px;
+      height:420px;border-radius:16px;overflow:hidden;
+    }
+    .globe-wrap canvas{
+      width:100%;height:100%;display:block;
+    }
+
     /* ── Footer ── */
     .footer{
       padding:48px 0 32px;border-top:1px solid rgba(255,255,255,.06);
@@ -699,25 +708,25 @@
           <div class="tl-dot"></div>
           <div class="tl-date">Foundation</div>
           <div class="tl-title">Economics Degree</div>
-          <div class="tl-desc">Studied economics, developed analytical thinking, and discovered a passion for data-driven problem solving.</div>
+          <div class="tl-desc">Studied economics, developed analytical thinking, and discovered a love for data-driven problem solving.</div>
         </div>
         <div class="tl-item reveal" data-delay="1">
           <div class="tl-dot"></div>
           <div class="tl-date">The Spark</div>
           <div class="tl-title">First Lines of Code</div>
-          <div class="tl-desc">Started automating repetitive tasks with Python. Built my first projects and discovered the world of programming.</div>
+          <div class="tl-desc">Started automating repetitive tasks with Python. Built the Take Home Pay Calculator and CSV Reconciliation tools.</div>
         </div>
         <div class="tl-item reveal" data-delay="2">
           <div class="tl-dot"></div>
           <div class="tl-date">Going Deeper</div>
           <div class="tl-title">Web3 &amp; Blockchain</div>
-          <div class="tl-desc">Dove into Blockchain ecosystems. Built gas optimisers, queue monitors, and DeFi simulators.</div>
+          <div class="tl-desc">Dove into Ethereum and Solana ecosystems. Built gas optimisers, queue monitors, and DeFi simulators.</div>
         </div>
         <div class="tl-item reveal" data-delay="3">
           <div class="tl-dot"></div>
           <div class="tl-date">Now</div>
           <div class="tl-title">Full-Stack Builder</div>
-          <div class="tl-desc">Shipping production apps with Next.js, exploring machine learning, trading, and always building the next thing.</div>
+          <div class="tl-desc">Shipping production apps with Next.js, exploring machine learning, and always building the next thing.</div>
         </div>
       </div>
     </div>
@@ -743,6 +752,11 @@
           <i class="fas fa-envelope"></i>
           <span class="social-name">Email</span>
         </a>
+      </div>
+
+      <!-- Interactive globe network -->
+      <div class="globe-wrap reveal">
+        <canvas id="globeNet"></canvas>
       </div>
     </div>
   </section>
@@ -925,6 +939,144 @@
       const t=document.querySelector(this.getAttribute('href'));
       if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
     }));
+
+    /* ── Globe network ── */
+    (function(){
+      const canvas=document.getElementById('globeNet');
+      if(!canvas)return;
+      const ctx=canvas.getContext('2d');
+      let w,h,raf,points=[];
+      const mouse={x:0,y:0,active:false};
+      const CONNECT=48,RF=0.38;
+
+      function resize(){
+        const rect=canvas.parentElement.getBoundingClientRect();
+        const dpr=window.devicePixelRatio||1;
+        w=rect.width;h=rect.height;
+        canvas.width=w*dpr;canvas.height=h*dpr;
+        ctx.scale(dpr,dpr);
+      }
+
+      function genSphere(){
+        points=[];
+        const LATS=18,LONS=28;
+        for(let i=1;i<LATS;i++){
+          const phi=Math.PI*i/LATS;
+          const ringN=Math.max(6,Math.round(LONS*Math.sin(phi)));
+          for(let j=0;j<ringN;j++){
+            const theta=2*Math.PI*j/ringN;
+            points.push({
+              ox:Math.sin(phi)*Math.cos(theta),
+              oy:Math.cos(phi),
+              oz:Math.sin(phi)*Math.sin(theta)
+            });
+          }
+        }
+        points.push({ox:0,oy:1,oz:0});
+        points.push({ox:0,oy:-1,oz:0});
+      }
+
+      function project(p,ry,rx){
+        let x=p.ox*Math.cos(ry)-p.oz*Math.sin(ry);
+        let z=p.ox*Math.sin(ry)+p.oz*Math.cos(ry);
+        let y=p.oy;
+        let y2=y*Math.cos(rx)-z*Math.sin(rx);
+        let z2=y*Math.sin(rx)+z*Math.cos(rx);
+        const R=Math.min(w,h)*RF;
+        const persp=800;
+        const scale=persp/(z2*R+persp);
+        return{sx:w/2+x*R*scale,sy:h/2+y2*R*scale,z:z2,scale};
+      }
+
+      let smoothMX=0,smoothMY=0;
+      function draw(time){
+        ctx.clearRect(0,0,w,h);
+        const autoRY=time*0.0002;
+        const targetMX=mouse.active?(mouse.x-w/2)/w*0.6:0;
+        const targetMY=mouse.active?(mouse.y-h/2)/h*0.4:0;
+        smoothMX+=(targetMX-smoothMX)*0.04;
+        smoothMY+=(targetMY-smoothMY)*0.04;
+        const ry=autoRY+smoothMX;
+        const rx=-0.3+smoothMY;
+
+        const projected=points.map(p=>project(p,ry,rx));
+
+        // connections
+        for(let i=0;i<projected.length;i++){
+          for(let j=i+1;j<projected.length;j++){
+            const a=projected[i],b=projected[j];
+            const dx=a.sx-b.sx,dy=a.sy-b.sy;
+            const dist=Math.sqrt(dx*dx+dy*dy);
+            if(dist<CONNECT){
+              const d=Math.min(a.z+1,b.z+1)/2;
+              if(d<0.15)continue;
+              ctx.beginPath();
+              ctx.moveTo(a.sx,a.sy);ctx.lineTo(b.sx,b.sy);
+              ctx.strokeStyle='rgba(34,211,238,'+(0.35*(1-dist/CONNECT)*d)+')';
+              ctx.lineWidth=1;ctx.stroke();
+            }
+          }
+        }
+
+        // mouse connections
+        if(mouse.active){
+          for(const p of projected){
+            if(p.z<0)continue;
+            const dx=p.sx-mouse.x,dy=p.sy-mouse.y;
+            const dist=Math.sqrt(dx*dx+dy*dy);
+            if(dist<140){
+              const alpha=(1-dist/140)*p.z*0.3;
+              ctx.beginPath();
+              ctx.moveTo(p.sx,p.sy);ctx.lineTo(mouse.x,mouse.y);
+              ctx.strokeStyle='rgba(139,92,246,'+alpha+')';
+              ctx.lineWidth=1;ctx.stroke();
+            }
+          }
+        }
+
+        // nodes
+        for(const p of projected){
+          const d=Math.max(0,(p.z+1)/2);
+          if(d<0.08)continue;
+          const r=Math.max(0.6,1.8*p.scale*d);
+          ctx.beginPath();
+          ctx.arc(p.sx,p.sy,r,0,Math.PI*2);
+          ctx.fillStyle='rgba(34,211,238,'+(0.7*d)+')';
+          ctx.fill();
+          if(d>0.7){
+            ctx.beginPath();
+            ctx.arc(p.sx,p.sy,r+2,0,Math.PI*2);
+            ctx.fillStyle='rgba(34,211,238,'+(0.1*(d-0.7)/0.3)+')';
+            ctx.fill();
+          }
+        }
+
+        raf=requestAnimationFrame(draw);
+      }
+
+      const wrap=canvas.parentElement;
+      wrap.addEventListener('mousemove',e=>{
+        const rect=canvas.getBoundingClientRect();
+        mouse.x=e.clientX-rect.left;mouse.y=e.clientY-rect.top;mouse.active=true;
+      });
+      wrap.addEventListener('mouseleave',()=>{mouse.active=false;});
+      wrap.addEventListener('touchmove',e=>{
+        const rect=canvas.getBoundingClientRect();
+        mouse.x=e.touches[0].clientX-rect.left;mouse.y=e.touches[0].clientY-rect.top;mouse.active=true;
+      },{passive:true});
+      wrap.addEventListener('touchend',()=>{mouse.active=false;});
+
+      const gObs=new IntersectionObserver(es=>{
+        es.forEach(e=>{
+          if(e.isIntersecting){if(!raf)raf=requestAnimationFrame(draw);}
+          else{if(raf){cancelAnimationFrame(raf);raf=null;}}
+        });
+      },{threshold:0.05});
+      gObs.observe(wrap);
+
+      window.addEventListener('resize',resize);
+      genSphere();resize();
+    })();
   </script>
 </body>
 </html>
