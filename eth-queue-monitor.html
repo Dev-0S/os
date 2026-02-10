@@ -176,7 +176,6 @@
   .hero {
     position: relative; min-height: 72vh; display: grid; align-items: center; overflow: hidden;
     margin-top: var(--header-offset);
-    scroll-margin-top: var(--header-offset);
     z-index: 1;
   }
   .hero-canvas {
@@ -344,7 +343,6 @@
   }
 
   #entry, #exit, #calc, #validatorLookup, #overview {
-    scroll-margin-top: var(--header-offset);
   }
 
   /* ============================================================
@@ -541,6 +539,149 @@
   .search-group input {
     flex: 1;
   }
+
+  /* ============================================================
+     HOW IT WORKS STEPS
+     ============================================================ */
+  .steps {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    position: relative;
+  }
+  .steps::before {
+    content: ''; position: absolute; top: 32px; left: 10%; right: 10%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(34,211,238,.15), rgba(139,92,246,.15), transparent);
+  }
+  .step {
+    text-align: center; padding: 20px 16px;
+  }
+  .step-num {
+    width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 14px;
+    display: grid; place-items: center;
+    font-size: 20px; font-weight: 900;
+    background: rgba(255,255,255,.03); border: 1px solid var(--line);
+    color: var(--accent);
+    transition: all .4s;
+  }
+  .step:hover .step-num {
+    border-color: rgba(34,211,238,.3);
+    box-shadow: 0 0 24px rgba(34,211,238,.12);
+    transform: translateY(-2px);
+  }
+  .step-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .step-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  @media (max-width: 640px) {
+    .steps { grid-template-columns: 1fr; gap: 12px; }
+    .steps::before { display: none; }
+  }
+
+  /* ============================================================
+     NETWORK TIMELINE
+     ============================================================ */
+  .timeline {
+    position: relative;
+    padding: 20px 0;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, rgba(34,211,238,.25) 10%, rgba(139,92,246,.2) 90%, transparent);
+    transform: translateX(-1px);
+  }
+  .tl-item {
+    display: flex;
+    align-items: flex-start;
+    position: relative;
+    margin-bottom: 40px;
+    width: 50%;
+  }
+  .tl-item:nth-child(odd) {
+    align-self: flex-start;
+    padding-right: 48px;
+    text-align: right;
+    margin-left: 0;
+  }
+  .tl-item:nth-child(even) {
+    align-self: flex-end;
+    padding-left: 48px;
+    margin-left: 50%;
+  }
+  .tl-dot {
+    position: absolute;
+    top: 6px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 12px rgba(34,211,238,.4), 0 0 24px rgba(34,211,238,.15);
+    z-index: 1;
+  }
+  .tl-item:nth-child(odd) .tl-dot { right: -7px; }
+  .tl-item:nth-child(even) .tl-dot { left: -7px; }
+  .tl-date {
+    font-size: 13px; font-weight: 800;
+    color: var(--accent);
+    letter-spacing: .5px;
+    margin-bottom: 6px;
+  }
+  .tl-content h4 {
+    font-size: 15px; font-weight: 700;
+    margin: 0 0 4px; color: var(--ink);
+  }
+  .tl-content p {
+    font-size: 13px; color: var(--muted);
+    line-height: 1.55; margin: 0;
+  }
+  @media (max-width: 640px) {
+    .timeline::before { left: 16px; }
+    .tl-item,
+    .tl-item:nth-child(odd),
+    .tl-item:nth-child(even) {
+      width: 100%;
+      margin-left: 0;
+      padding-left: 44px;
+      padding-right: 0;
+      text-align: left;
+    }
+    .tl-dot,
+    .tl-item:nth-child(odd) .tl-dot,
+    .tl-item:nth-child(even) .tl-dot {
+      left: 9px; right: auto;
+    }
+  }
+
+  /* ============================================================
+     INFO BANNER
+     ============================================================ */
+  .info-banner {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  }
+  .info-item {
+    text-align: center; padding: 20px 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--line);
+    transition: all .3s;
+  }
+  .info-item:hover {
+    border-color: rgba(34,211,238,.15);
+    transform: translateY(-2px);
+  }
+  .info-icon {
+    font-size: 24px; margin-bottom: 8px;
+  }
+  .info-val {
+    font-size: 20px; font-weight: 900; color: var(--accent);
+    margin-bottom: 2px;
+  }
+  .info-label {
+    font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+  }
+  @media (max-width: 640px) {
+    .info-banner { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -613,7 +754,7 @@
 </header>
 
 <!-- THREE DATA CARDS -->
-<section>
+<section id="entry">
   <div class="container">
     <div class="section-header reveal">
       <h2>Network Overview</h2>
@@ -636,7 +777,7 @@
       </div>
 
       <!-- Entry Queue -->
-      <div class="card pad reveal" id="entry" style="transition-delay:.1s">
+      <div class="card pad reveal" style="transition-delay:.1s">
         <div class="card-header">
           <div class="card-icon green">↗</div>
           <h3>Entry Queue</h3>
@@ -663,6 +804,33 @@
           <div class="k">Withdraw-ready ETA</div><div class="v mono" id="withdrawEta">—</div>
         </div>
         <div class="note">ETA = now + exit queue + sweep + 27 hour protocol delay. Sweep = validators ÷ 115,200 per day.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section>
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>How It Works</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title">Queue Position</div>
+        <div class="step-desc">Validators enter or exit the beacon chain via a first-in-first-out queue, processed at a rate of 256 ETH per epoch.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title">Churn Limit</div>
+        <div class="step-desc">The protocol limits activations and exits to a churn rate — currently 8 validators per epoch — to maintain network stability.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title">Withdrawal Sweep</div>
+        <div class="step-desc">After exiting, validators wait for the sweep to cycle through all active validators (16 per slot), plus a 27-hour protocol delay.</div>
       </div>
     </div>
   </div>
@@ -710,6 +878,58 @@
   </div>
 </section>
 
+<!-- PROTOCOL PARAMS -->
+<section>
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Protocol Parameters</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="info-banner reveal">
+      <div class="info-item">
+        <div class="info-icon">⛓</div>
+        <div class="info-val">12s</div>
+        <div class="info-label">Slot time</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">📦</div>
+        <div class="info-val">32</div>
+        <div class="info-label">Slots / epoch</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">🔄</div>
+        <div class="info-val">16</div>
+        <div class="info-label">Withdrawals / slot</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">⏳</div>
+        <div class="info-val">27h</div>
+        <div class="info-label">Protocol delay</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">💎</div>
+        <div class="info-val">32 ETH</div>
+        <div class="info-label">Validator stake</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">⚡</div>
+        <div class="info-val">8</div>
+        <div class="info-label">Churn / epoch</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">🕐</div>
+        <div class="info-val">6.4m</div>
+        <div class="info-label">Epoch time</div>
+      </div>
+      <div class="info-item">
+        <div class="info-icon">📊</div>
+        <div class="info-val">115,200</div>
+        <div class="info-label">Sweeps / day</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- VALIDATOR LOOKUP -->
 <section id="validatorLookup">
   <div class="container">
@@ -727,6 +947,80 @@
         <button id="fetchValidator" class="btn">Lookup</button>
       </div>
       <div id="validatorResult" class="kv" style="gap:8px 16px;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- NETWORK TIMELINE -->
+<section class="container">
+  <div class="section-header reveal">
+    <h2>Network Timeline</h2>
+    <div class="section-line"></div>
+  </div>
+  <div class="timeline" style="display:flex; flex-direction:column;">
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2015</div>
+        <h4>Frontier Launch</h4>
+        <p>Ethereum mainnet goes live, enabling the first smart contracts and decentralised applications on a public blockchain.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2016</div>
+        <h4>The DAO &amp; Hard Fork</h4>
+        <p>A recursive call exploit drains 3.6 M ETH from The DAO. The community hard-forks to restore funds, creating Ethereum Classic.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2017</div>
+        <h4>Byzantium Upgrade</h4>
+        <p>EIP-649 delays the difficulty bomb and reduces block rewards, improving network stability ahead of the Metropolis roadmap.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2019</div>
+        <h4>Istanbul Upgrade</h4>
+        <p>Gas cost rebalancing and new precompiles improve Layer-2 compatibility and strengthen denial-of-service resistance.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2020</div>
+        <h4>Beacon Chain Launch</h4>
+        <p>The proof-of-stake consensus layer launches, allowing validators to begin staking ETH ahead of the full merge.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2021</div>
+        <h4>EIP-1559 / London</h4>
+        <p>Base fee burn mechanism transforms ETH economics — a portion of every transaction fee is permanently destroyed.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2022</div>
+        <h4>The Merge</h4>
+        <p>Ethereum transitions from proof-of-work to proof-of-stake, cutting energy consumption by ~99.95% overnight.</p>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-dot"></div>
+      <div class="tl-content">
+        <div class="tl-date">2024</div>
+        <h4>Dencun / Proto-Danksharding</h4>
+        <p>EIP-4844 introduces blob transactions, slashing Layer-2 data costs and paving the way for full danksharding.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -1009,14 +1303,34 @@
   // Nav scroll spy
   const navLinks = document.querySelectorAll('.navlinks a');
   const sections = document.querySelectorAll('section[id], header[id]');
+
+  function highlight(id){
+    navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+  }
+
   function setActive(){
     const scrollY = window.scrollY;
+    const atBottom = (window.innerHeight + scrollY) >= document.documentElement.scrollHeight - 40;
     let cur = '';
-    sections.forEach(s => { if(scrollY >= s.offsetTop - 200) cur = s.id; });
-    navLinks.forEach(a => {
-      a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
-    });
+    if(atBottom){
+      cur = sections[sections.length - 1]?.id || '';
+    } else {
+      // Use getBoundingClientRect — section is "active" when its top reaches the nav bar bottom
+      sections.forEach(s => {
+        if(s.getBoundingClientRect().top <= 120) cur = s.id;
+      });
+    }
+    highlight(cur);
   }
+
+  // Immediately highlight on nav click (don't wait for scroll to settle)
+  navLinks.forEach(a => {
+    a.addEventListener('click', () => {
+      const id = a.getAttribute('href').slice(1);
+      highlight(id);
+    });
+  });
+
   window.addEventListener('scroll', setActive, { passive: true });
   setActive();
 })();
